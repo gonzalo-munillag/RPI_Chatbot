@@ -1,0 +1,12 @@
+# FastAPI - Modern web framework for building APIs
+fastapi==0.104.1
+
+# Uvicorn - ASGI server to run FastAPI
+uvicorn[standard]==0.24.0
+
+# HTTP client to communicate with Ollama
+httpx==0.25.1
+
+# Pydantic - Data validation (comes with FastAPI but explicit for clarity)
+pydantic==2.5.0
+

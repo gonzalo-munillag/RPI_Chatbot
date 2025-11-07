@@ -1,0 +1,61 @@
+# Ollama + FastAPI Service
+# This container runs the AI backend
+
+FROM ollama/ollama:latest
+
+# Install Python and dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Ollama environment
+ENV OLLAMA_HOST=0.0.0.0:11434
+
+# Create working directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+# Copy FastAPI app
+COPY app.py .
+
+# Create data directory
+RUN mkdir -p /root/.ollama
+
+# Expose ports
+EXPOSE 11434 8000
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting Ollama..."\n\
+ollama serve &\n\
+OLLAMA_PID=$!\n\
+\n\
+echo "Waiting for Ollama to be ready..."\n\
+sleep 5\n\
+\n\
+echo "Pulling Gemma-2-2b model..."\n\
+ollama pull gemma2:2b\n\
+\n\
+echo "Starting FastAPI..."\n\
+cd /app\n\
+python3 app.py &\n\
+FASTAPI_PID=$!\n\
+\n\
+echo "Services started!"\n\
+echo "Ollama: http://localhost:11434"\n\
+echo "FastAPI: http://localhost:8000"\n\
+\n\
+# Wait for all processes\n\
+wait $OLLAMA_PID $FASTAPI_PID\n\
+' > /start.sh && chmod +x /start.sh
+
+# Override default entrypoint
+ENTRYPOINT []
+CMD ["/bin/bash", "/start.sh"]
+

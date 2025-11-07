@@ -1,0 +1,53 @@
+version: '3.8'
+
+# Docker Compose for Raspberry Pi
+# Multi-container setup: Ollama+FastAPI + WhatsApp Bridge (separate)
+# Place this file in /var/www/ollama_chatbot/
+
+services:
+  # Service 1: AI Backend (Ollama + FastAPI)
+  ollama:
+    image: gonzalomg0/ollama-gemma:latest
+    container_name: ollama-gemma
+    ports:
+      - "8000:8000"              # FastAPI
+      - "11434:11434"            # Ollama
+    volumes:
+      - ollama-data:/root/.ollama      # Ollama models
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    networks:
+      - chatbot-network
+
+  # Service 2: WhatsApp Bridge (Node.js + Chromium)
+  whatsapp:
+    image: gonzalomg0/whatsapp-bridge:latest
+    container_name: whatsapp-bridge
+    ports:
+      - "127.0.0.1:3000:3000"   # WhatsApp QR (localhost only!)
+    volumes:
+      - whatsapp-data:/data      # WhatsApp session
+    restart: unless-stopped
+    environment:
+      - OLLAMA_API_URL=http://ollama:8000  # Connect to ollama service
+    depends_on:
+      - ollama
+    networks:
+      - chatbot-network
+
+volumes:
+  ollama-data:
+    driver: local
+  whatsapp-data:
+    driver: local
+
+networks:
+  chatbot-network:
+    driver: bridge
