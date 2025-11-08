@@ -1,14 +1,128 @@
 # 🤖 Ollama Gemma-2-2b Chatbot for Raspberry Pi 5
 
+**You can talk to your AI from your WhatsApp app in a private manner, no APIs to third parties like OpenAI.**
+
+![AI says hi](Prometheus_hi.jpeg)
+
 A dockerized chatbot running Google's Gemma-2-2b model on Raspberry Pi 5, with FastAPI wrapper and WhatsApp integration.
+
+## 🔐 Security & Authorization
+
+This bot is configured with **strict authorization controls**:
+
+- **Phone Number Authorization**: Only responds to messages from YOUR specific WhatsApp phone number (not name-based, so completely unique)
+- **Dual ID System**: Uses both your regular phone number (`@c.us`) for direct chats AND your internal WhatsApp ID (`@lid`) for group chats
+- **Group Trigger Word**: In group chats, only responds when you start your message with "Prometheus" (you can change the trigger word name of your AI; I used the name of a character in my sci-fi epic _GÖD'S GATE_)
+- **Private Conversations**: In direct chats, responds to all your messages
+
+**Why phone number instead of name?**
+- ✅ Names can be duplicated (multiple people named "John" in groups)
+- ✅ Phone numbers are unique identifiers
+- ✅ No one can impersonate you even with the same name
+
+**Why two IDs (phone number + internal ID)?**
+- WhatsApp uses different identifier formats in different contexts
+- Direct chats use `@c.us` format (your phone number)
+- Group chats use `@lid` format (WhatsApp's internal ID)
+- Both IDs are _you_ - just different formats
+
+**Example Usage:**
+- Direct chat: "What is the capital of France?" → AI responds
+- Group chat: "Prometheus what is the capital of France?" → AI responds
+- Group chat: "What is the capital of France?" → AI ignores (no "Prometheus" prefix)
+- Anyone else in the group (even with your name) messages the bot → AI ignores completely
+
+⚠️ **IMPORTANT WARNING**: If you use your **personal WhatsApp account** (not a separate WhatsApp Business number) to initialize the bot, the AI will respond to **ALL incoming messages** as if it were you. Meta/WhatsApp will not detect this. **This is why I strongly recommend using a separate phone number for the bot.** Unless you want to ruin all your relationships :D
+
+### How to Configure Your Phone Number
+
+Your phone numbers are stored securely in a `.env` file that's excluded from GitHub:
+
+1. **Format your phone number:**
+   - Take your number with country code: `+49 598 65 85 32`
+   - Remove `+` and spaces: `49598658532`
+   - Add `@c.us` at the end: `49598658532@c.us`
+
+2. **Create your .env file:**
+   ```bash
+   # Copy the example file
+   cp .env.example .env
+   
+   # Edit with your configuration
+   nano .env
+   ```
+   
+   The `.env` file contains:
+   ```bash
+   # Required - WhatsApp Authorization
+   AUTHORIZED_NUMBER=YOUR_NUMBER_HERE@c.us
+   AUTHORIZED_LID=YOUR_LID_HERE@lid
+   
+   # Optional - AI Configuration (see CUSTOMIZATION_GUIDE.md)
+   MODEL_NAME=gemma2:2b
+   SYSTEM_PROMPT=You are Prometheus, a helpful AI assistant...
+   ```
+   
+   Replace:
+   - `YOUR_NUMBER_HERE@c.us` with your phone number (e.g., `49598658532@c.us`)
+   - `YOUR_LID_HERE@lid` - Leave as placeholder for now (you'll find this after first group message)
+   - `MODEL_NAME` and `SYSTEM_PROMPT` - Optional, use defaults or customize (see [CUSTOMIZATION_GUIDE.md](CUSTOMIZATION_GUIDE.md))
+
+3. **Copy .env to your Pi:**
+   ```bash
+   # On your Mac
+   scp .env user@your-pi-ip:~/
+   
+   # On Pi
+   sudo mv ~/.env /var/www/ollama_chatbot/.env
+   ```
+
+4. **Find your internal ID (for group chats):**
+   
+   After the bot is running:
+   
+   ```bash
+   # On Pi - watch the logs
+   sudo docker logs whatsapp-bridge -f
+   ```
+   
+   Send a message in a group (with or without "Prometheus"). You'll see:
+   ```
+   🔍 Group message received:
+      Group: My Test Group
+      Sender: 98765432109@lid    ← This is your LID!
+      Authorized Phone: 49598658532@c.us
+      Authorized LID: YOUR_LID_HERE@lid
+   ```
+   
+   Copy that `Sender` value (e.g., `98765432109@lid`) and update your `.env`:
+   ```bash
+   # On Pi
+   nano /var/www/ollama_chatbot/.env
+   ```
+   
+   Replace `YOUR_LID_HERE@lid` with your actual LID, save (Ctrl+X, Y, Enter), then:
+   ```bash
+   sudo docker-compose restart whatsapp
+   ```
+
+5. **Your numbers are now secure:**
+   - ✅ `.env` is in `.gitignore` (never pushed to GitHub)
+   - ✅ Docker reads it from the environment
+   - ✅ No hardcoded credentials in your code 
 
 ## 📋 Overview
 
 This project provides a complete setup for running a local AI chatbot on Raspberry Pi 5 with:
-- **Ollama** - Runs the Gemma-2-2b LLM
+- **Ollama** - Runs the Gemma-2-2b LLM (or any other model you choose)
 - **FastAPI** - REST API wrapper for easy integration
-- **Docker** - Containerized for easy deployment
 - **WhatsApp Integration** - Chat with your AI via WhatsApp (no public exposure needed!)
+- **Docker** - Containerizes components for easy deployment
+
+**🎨 Want to customize your AI?** Check out the **[CUSTOMIZATION_GUIDE.md](CUSTOMIZATION_GUIDE.md)** to learn how to:
+- Change the AI's personality (system prompt)
+- Switch to different models (LLaMA, Mistral, Phi, etc.)
+- Understand why we use `/var/www` and better alternatives
 
 ## 🏗️ Architecture
 
@@ -23,12 +137,12 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
 
 ### Prerequisites
 
-**On Mac M1 (Build Machine):**
+**On Your local machine (Build Machine):**
 - Docker Desktop with buildx enabled
 - Docker Hub account (logged in: `docker login`)
 - Git
 
-**On Raspberry Pi 5:**
+**On Raspberry Pi (mine is the model 5):**
 - Raspberry Pi OS (64-bit)
 - Docker installed
 - Docker Compose installed
@@ -39,11 +153,11 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
 
 ## 📦 Deployment Workflow
 
-### Step 1: Build on Mac M1
+### Step 1: Build on Your Mac
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone git@github.com:gonzalo-munillag/RPI_Chatbot.git
    cd RPI_Chatbot
    ```
 
@@ -53,13 +167,13 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
    ```bash
    nano build-and-push.sh
    ```
-   Replace `gonzalomg0` on line 10 with YOUR Docker Hub username.
+   Replace `gonzalomg0` with YOUR Docker Hub username.
    
    Edit docker-compose:
    ```bash
    nano docker-compose.yml
    ```
-   Replace `gonzalomg0` on line 9 with YOUR Docker Hub username.
+   Replace `gonzalomg0` with YOUR Docker Hub username.
 
 3. **Build and push to Docker Hub**
    ```bash
@@ -69,7 +183,7 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
    This will:
    - Build for ARM64 (Raspberry Pi) and AMD64 (Mac)
    - Push to Docker Hub
-   - Take 10-15 minutes on first build
+   - Take 10-15 minutes on first build, Gemma 2 - 2b takes around 1.5-2GB of space
 
 ---
 
@@ -80,7 +194,7 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
    ssh user@your-pi-address
    ```
 
-2. **Create project folder in /var/www**
+2. **Create project folder in /var/www** (that's where web projects are usually stored, this comes from Linux web server conventions (Apache, Nginx). Not necessaroly where this one should be...)
    ```bash
    sudo mkdir -p /var/www/ollama_chatbot
    cd /var/www/ollama_chatbot
@@ -91,7 +205,7 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
    **Option A - Copy to home, then move:**
    ```bash
    # On your Mac
-   scp docker-compose.yml user@your-pi:~/
+   scp docker-compose.yml user@your-pi-ip:~/
    
    # On Pi
    sudo mv ~/docker-compose.yml /var/www/ollama_chatbot/
@@ -117,117 +231,75 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
    
    **Note:** First startup takes 5-10 minutes to download the Gemma-2-2b model (~1.6GB)
 
-6. **Connect WhatsApp (Detailed Steps)**
+6. **Get a Second Phone Number for WhatsApp Bot**
+
+   **Why you need this:** WhatsApp Web (at least the client set up here) doesn't receive messages from the same account. You need a separate phone number for the bot.
+
+   ### eSIM (Easiest, €4-10)
+   
+   **Recommended:** [Airalo](https://www.airalo.com) - Digital eSIM provider
+   
+   1. **Download Airalo app** on your phone (iOS/Android)
+   2. **Create account** and browse eSIM plans
+   3. **Install the eSIM** on your phone (if you follow the app's user flow it will do it for you)
+      - iPhone: Settings → Cellular → Add eSIM
+      - Android: Settings → Network → SIM cards → Add eSIM
+   6. **Install WhatsApp Business** (separate from regular WhatsApp)
+   7. **Verify with the eSIM number:** Just input the new phone number into WhatsApp for business prompt. I did not receive an SMS to verify, so I chose a call instead. A WhatsApp bot called me and recited the verification code. 
+   
+   **Advantages:**
+   - ✅ No physical SIM card needed
+   - ✅ Instant activation
+   - ✅ Keep both on same phone
+   - ✅ Can use WhatsApp Business with eSIM number
+   
+7. **Connect WhatsApp (Detailed Steps)**
 
    ### Prerequisites on Pi:
    - Docker and Docker Compose installed ✅
-   - Container running: `docker ps` should show `ollama-gemma`
+   - Container running: `docker ps` should show `ollama-gemma` and `whatsapp-bridge`
    - SSH access working
+   - **Second phone number registered on WhatsApp Business**
    
-   ### Step-by-Step QR Code Access:
+   ### View QR Code:
 
-   **Method 1: SSH Tunnel (Recommended - Most Secure)**
-   
-   This method creates a secure encrypted tunnel from your Mac to the Pi.
-   
-   a. **Open Terminal on your Mac** and run:
+   SSH into your Pi and run:
    ```bash
-   ssh -L 3000:localhost:3000 user@your-pi-ip
+   sudo docker logs whatsapp-bridge -f
    ```
    
-   Example:
-   ```bash
-   ssh -L 3000:localhost:3000 gon.munillag@192.168.1.100
-   ```
+   You'll see the QR code displayed in the terminal. Keep this terminal open for the next step.
    
-   What this does:
-   - `-L 3000:localhost:3000` = Forward local port 3000 to Pi's localhost:3000
-   - Creates encrypted tunnel through SSH
-   - **Keep this terminal window open!**
+   ### Scan the QR Code with WhatsApp Business:
    
-   b. **Open your web browser** (Chrome, Firefox, Safari) and go to:
-   ```
-   http://localhost:3000/qr
-   ```
+   Once you can see the QR code in the terminal:
    
-   You should see the QR code appear!
-   
-   c. **If you see "This site can't be reached":**
-   - Check the SSH terminal is still open
-   - Make sure Docker container is running: `docker ps` on Pi
-   - Check logs: `docker logs ollama-gemma -f` on Pi
-   - Wait 1-2 minutes for WhatsApp bridge to fully start
-   
-   ---
-   
-   **Method 2: Direct Network Access (Temporary)**
-   
-   Use this if SSH tunnel doesn't work for some reason.
-   
-   a. **On Pi, edit docker-compose.yml:**
-   ```bash
-   cd /var/www/ollama_chatbot
-   sudo nano docker-compose.yml
-   ```
-   
-   b. **Change line 17 from:**
-   ```yaml
-   - "127.0.0.1:3000:3000"   # WhatsApp QR (localhost only)
-   ```
-   
-   **To:**
-   ```yaml
-   - "3000:3000"   # WhatsApp QR (network accessible - TEMPORARY!)
-   ```
-   
-   c. **Restart the container:**
-   ```bash
-   sudo docker-compose down
-   sudo docker-compose up -d
-   ```
-   
-   d. **Find your Pi's IP address** (if you don't know it):
-   ```bash
-   hostname -I
-   ```
-   
-   e. **Open browser on your Mac/phone** and visit:
-   ```
-   http://YOUR_PI_IP:3000/qr
-   ```
-   Example: `http://192.168.1.100:3000/qr`
-   
-   f. **IMPORTANT: After scanning, secure it again!**
-   ```bash
-   # Edit docker-compose.yml and change back to:
-   - "127.0.0.1:3000:3000"
-   
-   # Restart:
-   sudo docker-compose down && sudo docker-compose up -d
-   ```
-   
-   ---
-   
-   ### Scan the QR Code with WhatsApp:
-   
-   Once you can see the QR code in your browser:
-   
-   1. **Open WhatsApp on your phone**
+   1. **Open WhatsApp Business** on your phone (with the eSIM/second number)
    2. **Android:** Tap ⋮ (three dots) → **Linked Devices**
       **iPhone:** Tap **Settings** → **Linked Devices**
    3. Tap **Link a Device**
-   4. **Scan the QR code** on your computer screen
+   4. **Scan the QR code** displayed in your browser
    5. **Wait 5-10 seconds** - Page will show "✅ WhatsApp Connected!"
+   6. **The bot is now linked!** Your personal WhatsApp can now message the bot's number
    
    ### Test the Bot:
    
-   Send a message to yourself (your own WhatsApp number):
-   ```
-   You: What is the capital of France?
-   Bot: The capital of France is Paris. It is located...
-   ```
+   1. **Add the bot's number to your contacts** in your personal WhatsApp
+   2. **Send a message** from your personal WhatsApp to the bot's number:
+      ```
+      What is the capital of France?
+      ```
+   3. **Wait for response** (may take 30-60 seconds for first message while model loads)
    
-   **Note:** First response may take 30-60 seconds while model loads. Subsequent responses are faster (5-30 seconds).
+   **For Group Chats:**
+   - Add the bot to any group
+   - Use the trigger word: `Prometheus what is the capital of France?`
+   - **The bot will only respond to messages from you that start with "Prometheus"**
+   
+   **Note:** Subsequent responses are faster (5-30 seconds).
+   
+   ![Successful Conversation](Successful_conversation_log.png)
+   *Example of a successful conversation with the AI bot*
    
    ### Troubleshooting QR Code Access:
    
@@ -263,7 +335,7 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
 
 ---
 
-### 💬 WhatsApp Usage
+### 💬 WhatsApp Usage & Customization
 
 **Features:**
 - ✅ Works in personal chats
@@ -274,53 +346,272 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
 
 **Security:**
 - 🔒 Port 3000 is bound to localhost only (can't be accessed from network)
-- 🔒 Use SSH tunnel to safely access QR code
 - 🔒 WhatsApp session is stored in encrypted Docker volume
-- 🔒 Only you (who scanned QR) can use the bot
+- 🔒 Only authorized user (by phone number + internal ID) can trigger the bot
+- 🔒 Group messages require "Prometheus" trigger word
+- 🔒 Rate limiting prevents spam (from my end, since I am the only one able to trigger responses; but could be extended to trusted entities and increase cooldown) (2 second cooldown)
+- 🔒 Message length limits prevent overflow
+- 🔒 Context isolation per group (see below)
 
-**Troubleshooting:**
+---
 
-*QR code not showing?*
-```bash
-docker logs ollama-gemma -f
+### 🧠 Context-Aware Group Conversations
+
+**Prometheus "Listens" to Group Conversations**
+
+The bot stores recent messages from group chats to provide context-aware responses. However, it **only responds to you**.
+
+#### How It Works:
+
+```
+Alice: "The weather is great today!"
+Bob: "Yeah, perfect for a picnic"
+Charlie: "Should we go to the park?"
+
+You: "Prometheus what are they planning?"
+AI: "Based on the conversation, Alice mentioned the weather is great, and they're discussing going to the park for a picnic."
 ```
 
-*WhatsApp disconnects?*
+**Key Features:**
+- ✅ **Stores last 15 messages** per group (memory efficient)
+- ✅ **Sends only 5 messages** to AI (stays within token limits)
+- ✅ **Prioritizes your direct question** over context
+- ✅ **Completely isolated per group** - E.g. family group context never mixes with Work group context
+- ✅ **Automatic cleanup** - Context cleared on container restart
+
+#### Conversation Compartmentalization
+
+Each group has its **own isolated context storage**:
+
+```
+Family Group (ID: abc123@g.us)
+  └─ [Last 15 messages from family]
+  
+Work Group (ID: xyz789@g.us)
+  └─ [Last 15 messages from work]
+  
+Friends Group (ID: def456@g.us)
+  └─ [Last 15 messages from friends]
+```
+
+When you ask Prometheus a question in the Family group, it **only** sees Family group messages. Work and Friends contexts are completely separate and never mixed.
+
+**Privacy Note:** 
+- Context stored in memory only (RAM)
+- Not saved to disk
+- Cleared when container restarts
+- Max 50 groups tracked (memory protection)
+
+---
+
+### 🛡️ Anti-Spam & Abuse Protections
+
+The bot includes multiple layers of protection to prevent malfunction and abuse:
+
+#### Protection 1: Message Length Limits ✂️
+
+```
+MAX_MESSAGE_LENGTH = 500 characters per message
+```
+
+**What it does:**
+- Truncates any message longer than 500 characters
+- Adds `... [truncated]` indicator
+- Prevents token overflow
+
+**Example:**
+```
+User sends 2,000 character essay
+Stored as: [First 500 chars]... [truncated]
+```
+
+#### Protection 2: Rate Limiting ⏱️
+
+```
+RATE_LIMIT = 2 seconds between requests
+```
+
+**What it does:**
+- You must wait 2 seconds between AI requests
+- Prevents rapid-fire spam
+- Bot replies: "⏱️ Please wait X seconds"
+
+**Example:**
+```
+10:00:00 - "Prometheus hi" ✅ Responds
+10:00:01 - "Prometheus hi" ❌ "Please wait 1 second"
+10:00:02 - "Prometheus hi" ✅ Responds
+```
+
+#### Protection 3: Context Limits 📊
+
+```
+MAX_CONTEXT_MESSAGES = 15  (stored per group)
+MAX_CONTEXT_TO_SEND = 5    (sent to AI)
+```
+
+**Token Budget:**
+- 5 messages × 500 chars = 2,500 characters
+- ~750-1,000 tokens for context
+- Total usage: ~20-25% of Gemma-2-2b's 8K token limit
+- **Safe buffer** to prevent context overflow
+
+#### Protection 4: Group Limits 🏘️
+
+```
+MAX_GROUPS = 50 groups
+```
+
+**What it does:**
+- Tracks context for maximum 50 groups
+- 51st group won't store context (but bot still responds to you)
+- **Memory protection** prevents RAM from growing unbounded
+
+#### Protection 5: Priority System 🎯
+
+The AI **always prioritizes your direct question** over context:
+
+```
+Context: Alice, Bob, Charlie talking about weather
+You: "Prometheus what is the latin name for earth?"
+AI: Ignores weather context, answers: "Terra"
+```
+
+---
+
+### 🎨 Customizing WhatsApp Filters
+
+The bot's behavior is controlled by `whatsapp-bridge/index.js`. Here's how to customize it:
+
+#### Change the Trigger Word (Groups)
+
+Find this line in `whatsapp-bridge/index.js`:
+
+```javascript
+if (!message.body.startsWith('Prometheus')) {
+```
+
+Replace `'Prometheus'` with your preferred trigger word:
+```javascript
+if (!message.body.startsWith('Hey AI')) {  // Your custom trigger
+```
+
+#### Add Multiple Authorized Users
+
+Currently, the bot only responds to one user. To add more users:
+
+1. **Find their internal IDs** by watching the logs when they send a message
+2. **Modify the authorization check** in `index.js`:
+
+```javascript
+// Replace this:
+const isAuthorized = (senderNumber === AUTHORIZED_NUMBER) || (senderNumber === AUTHORIZED_LID);
+
+// With this:
+const AUTHORIZED_USERS = [
+    process.env.AUTHORIZED_NUMBER,
+    process.env.AUTHORIZED_LID,
+    'FRIEND_NUMBER@c.us',
+    'FRIEND_LID@lid'
+];
+const isAuthorized = AUTHORIZED_USERS.includes(senderNumber);
+```
+
+#### Make Bot Respond to All Group Members
+
+To make the bot respond to everyone in a group (not just you):
+
+```javascript
+// Replace this:
+if (!isAuthorized) {
+    if (chat.isGroup) {
+        console.log(`   ❌ Not authorized user - ignoring`);
+    }
+    return;
+}
+
+// With this:
+if (chat.isGroup && !message.body.startsWith('Prometheus')) {
+    return;  // Only check for trigger word, not user
+}
+```
+
+#### Disable Group Trigger Word
+
+To make the bot respond to all your messages in groups (without needing "Prometheus"):
+
+```javascript
+// Remove or comment out these lines:
+if (chat.isGroup) {
+    if (!message.body.startsWith('Prometheus')) {
+        console.log(`   ❌ Missing "Prometheus" trigger - ignoring`);
+        return;
+    }
+    message.body = message.body.substring('Prometheus'.length).trim();
+}
+```
+
+**After making changes:**
+1. Rebuild the Docker image: `./build-and-push.sh`
+2. Watchtower will auto-deploy in ~5 minutes, or manually restart: `sudo docker-compose restart whatsapp`
+
+---
+
+### 🐛 Troubleshooting
+
+**QR code not showing?**
+```bash
+sudo docker logs whatsapp-bridge -f
+```
+
+**WhatsApp disconnects or Chromium profile locked?**
+
+This happens when containers restart rapidly. Fix:
 ```bash
 # Remove session and re-scan
 cd /var/www/ollama_chatbot
 sudo docker-compose down
 sudo docker volume rm ollama_chatbot_whatsapp-data
 sudo docker-compose up -d
-# Access QR code again with SSH tunnel or direct method
+# Access QR code again and re-scan with WhatsApp Business
 ```
 
-*Bot not responding?*
+**Bot not responding to group messages?**
+
+Check if your internal ID (`@lid`) is configured:
+```bash
+# Watch the logs
+sudo docker logs whatsapp-bridge -f
+
+# Send a group message, look for:
+#   Sender: 98765432109@lid    ← Your LID
+#   Authorized LID: YOUR_LID_HERE@lid  ← Should match!
+```
+
+If it shows `YOUR_LID_HERE@lid`, you need to update your `.env` file (see "Find your internal ID" section above).
+
+**Bot not responding at all?**
 ```bash
 # Check if services are running
+docker ps
 curl http://localhost:8000/health
 curl http://localhost:3000/health
+
+# Check logs for errors
+sudo docker logs ollama-gemma -f
+sudo docker logs whatsapp-bridge -f
 ```
 
----
-
-### Step 3: Updates (Automatic with Watchtower)
-
-**With Watchtower running:**
-- Just run `./build-and-push.sh` on your Mac
-- Watchtower automatically pulls the new image on your Pi
-- Container restarts with the new version
-- **No manual intervention needed!** ✨
-
-**Without Watchtower (Manual):**
+**Container keeps restarting?**
 ```bash
-# On Pi
-cd /var/www/ollama_chatbot
-sudo docker-compose pull
-sudo docker-compose up -d
-```
+# Check what's wrong
+docker logs whatsapp-bridge --tail 50
 
----
+# Common issue: .env file not loaded
+ls -la /var/www/ollama_chatbot/.env
+
+# If missing, copy it from your Mac again
+```
 
 ## 🧪 Testing
 
@@ -411,7 +702,7 @@ sudo docker-compose up -d
 
 ## 🔧 Useful Commands
 
-### On Mac (Build Machine)
+### On Your Mac (Build Machine)
 
 ```bash
 # Rebuild and push new version
@@ -448,16 +739,6 @@ docker-compose ps
 # Enter container shell (debugging)
 docker exec -it ollama-gemma /bin/bash
 ```
-
----
-
-## 🔐 Cloudflare Tunnel Setup (Coming Next)
-
-This will be covered in the deployment guide, but the tunnel will:
-- Point to `http://localhost:8000`
-- Provide HTTPS access from anywhere
-- No port forwarding needed
-- No firewall changes required
 
 ---
 
@@ -509,7 +790,7 @@ docker-compose logs -f
 ## 🔄 CI/CD Pipeline
 
 **Current Setup:**
-1. **Mac M1 Pro** - Build multi-arch images
+1. **Your Mac** - Build multi-arch images
 2. **Docker Hub** - Image registry
 3. **Raspberry Pi** - Watchtower auto-pulls updates
 
@@ -541,33 +822,6 @@ docker ps | grep watchtower
 - **Docker** - Containerization
 - **Docker Buildx** - Multi-architecture builds
 - **Cloudflare Tunnel** - Secure external access
-
----
-
-## 🤝 Contributing
-
-Feel free to open issues or submit PRs!
-
----
-
-## 📄 License
-
-See LICENSE file for details.
-
----
-
-## 🎯 Future Enhancements
-
-Ideas for extending your chatbot:
-
-1. **Conversation History** - Store chat history in database
-2. **Multiple Users** - Support multiple WhatsApp numbers
-3. **Group Chat Support** - Enable bot in WhatsApp groups
-4. **Voice Messages** - Transcribe and respond to voice notes
-5. **Image Understanding** - Add vision capabilities
-6. **Custom Commands** - Add `/help`, `/reset`, etc.
-7. **Rate Limiting** - Prevent spam/abuse
-8. **Analytics** - Track usage and performance
 
 ---
 

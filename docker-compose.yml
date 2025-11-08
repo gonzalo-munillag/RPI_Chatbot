@@ -17,6 +17,8 @@ services:
     restart: unless-stopped
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
+      - MODEL_NAME=${MODEL_NAME:-gemma2:2b}     # AI model (from .env, see CUSTOMIZATION_GUIDE.md)
+      - SYSTEM_PROMPT=${SYSTEM_PROMPT}          # AI personality (from .env)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -37,6 +39,8 @@ services:
     restart: unless-stopped
     environment:
       - OLLAMA_API_URL=http://ollama:8000  # Connect to ollama service
+      - AUTHORIZED_NUMBER=${AUTHORIZED_NUMBER}  # Your WhatsApp phone number (from .env file)
+      - AUTHORIZED_LID=${AUTHORIZED_LID}  # Your WhatsApp internal ID for groups (from .env file)
     depends_on:
       - ollama
     networks:

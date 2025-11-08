@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import httpx
 import logging
+import os
 from typing import Optional
 
 # Configure logging to see what's happening
@@ -22,6 +23,14 @@ app = FastAPI(
 
 # Ollama API endpoint (running on same container)
 OLLAMA_URL = "http://localhost:11434"
+
+# System prompt - can be customized via environment variable
+DEFAULT_SYSTEM_PROMPT = """You are Prometheus, a helpful AI assistant. You are knowledgeable, concise, and friendly. Keep responses under 200 words unless asked for more detail. When you receive messages with context from group conversations: (1) ALWAYS prioritize answering the user's direct question. (2) Use the context ONLY if it's relevant to their question. (3) If their question is unrelated to the context, ignore the context completely. (4) The user's question is what matters most, context is just optional background information."""
+
+SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
+
+# Model name - can be changed via environment variable
+MODEL_NAME = os.getenv("MODEL_NAME", "gemma2:2b")
 
 # Pydantic models for request/response validation
 class ChatRequest(BaseModel):
@@ -128,10 +137,19 @@ async def chat(request: ChatRequest):
         ChatResponse with the model's reply
     """
     try:
-        # Prepare the request to Ollama
+        # Prepare the request to Ollama using chat API (supports system messages)
         ollama_request = {
-            "model": "gemma2:2b",
-            "prompt": request.message,
+            "model": MODEL_NAME,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": request.message
+                }
+            ],
             "stream": request.stream,
             "options": {
                 "temperature": request.temperature,
@@ -141,10 +159,10 @@ async def chat(request: ChatRequest):
         
         logger.info(f"Sending request to Ollama: {request.message[:50]}...")
         
-        # Send request to Ollama
+        # Send request to Ollama's chat endpoint
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
-                f"{OLLAMA_URL}/api/generate",
+                f"{OLLAMA_URL}/api/chat",
                 json=ollama_request
             )
             response.raise_for_status()
@@ -155,8 +173,8 @@ async def chat(request: ChatRequest):
             logger.info(f"Received response from Ollama")
             
             return ChatResponse(
-                response=result.get("response", ""),
-                model=result.get("model", "gemma2:2b"),
+                response=result.get("message", {}).get("content", ""),
+                model=result.get("model", MODEL_NAME),
                 done=result.get("done", True)
             )
             

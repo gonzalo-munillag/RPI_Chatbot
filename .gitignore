@@ -28,3 +28,12 @@ Thumbs.db
 # Ollama models (if testing locally)
 .ollama/
 
+# Environment variables (contains sensitive data)
+.env
+
+# blog post file
+BLOG_POST.md
+
+# quick ssh into the pi
+ssh_pi.sh
+send_env2pi.sh

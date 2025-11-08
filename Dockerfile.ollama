@@ -39,8 +39,10 @@ OLLAMA_PID=$!\n\
 echo "Waiting for Ollama to be ready..."\n\
 sleep 5\n\
 \n\
-echo "Pulling Gemma-2-2b model..."\n\
-ollama pull gemma2:2b\n\
+# Pull the model specified in MODEL_NAME env var (default: gemma2:2b)\n\
+MODEL=${MODEL_NAME:-gemma2:2b}\n\
+echo "Pulling model: $MODEL..."\n\
+ollama pull $MODEL\n\
 \n\
 echo "Starting FastAPI..."\n\
 cd /app\n\
@@ -50,6 +52,7 @@ FASTAPI_PID=$!\n\
 echo "Services started!"\n\
 echo "Ollama: http://localhost:11434"\n\
 echo "FastAPI: http://localhost:8000"\n\
+echo "Model: $MODEL"\n\
 \n\
 # Wait for all processes\n\
 wait $OLLAMA_PID $FASTAPI_PID\n\
