@@ -276,6 +276,46 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
 - 🔒 Message length limits prevent overflow
 - 🔒 Context isolation per group (see below)
 
+#### 🔌 Understanding Port Binding
+
+In `docker-compose.yml`, you'll see:
+
+```yaml
+ports:
+  - "127.0.0.1:3000:3000"
+```
+
+**What this means:**
+
+```
+127.0.0.1  :  3000  :  3000
+    ↓          ↓        ↓
+  Bind to   Host    Container
+ localhost  Port     Port
+```
+
+**Security difference:**
+
+| Configuration | What It Does | Security |
+|---------------|--------------|----------|
+| `"3000:3000"` | Binds to `0.0.0.0:3000` → **Accessible from any network device** | ⚠️ **Insecure** |
+| `"127.0.0.1:3000:3000"` | Binds to `localhost:3000` → **Only accessible from Pi itself** | ✅ **Secure** |
+
+**Why this matters:**
+- With `0.0.0.0`: Anyone on your network can access `http://pi-ip:3000` and potentially see your WhatsApp QR code!
+- With `127.0.0.1`: Only accessible via `http://localhost:3000` on the Pi itself (or via SSH tunnel)
+
+**To access from your Mac:**
+```bash
+# Create SSH tunnel
+ssh -L 3000:localhost:3000 user@pi-ip
+
+# Now access on your Mac
+http://localhost:3000/qr
+```
+
+The SSH tunnel securely forwards the port through the encrypted SSH connection.
+
 ---
 
 ### 🧠 Context-Aware Group Conversations
@@ -324,6 +364,28 @@ When you ask Prometheus a question in the Family group, it **only** sees Family 
 - Not saved to disk
 - Cleared when container restarts
 - Max 50 groups tracked (memory protection)
+
+#### 🔍 Debug Command
+
+To check what context is stored for a group, send:
+
+```
+Prometheus debug context
+```
+
+**Response example:**
+```
+🔍 Context Debug
+
+Stored 4 messages:
+
+1. [Alice]: The weather is great today!
+2. [Bob]: Yeah, perfect for a picnic
+3. [Charlie]: Should we go to the park?
+4. [You]: Prometheus answer his question
+```
+
+This helps troubleshoot if the AI isn't using context properly. The bot will show you exactly what messages are stored in memory for that group.
 
 ---
 

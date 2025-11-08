@@ -142,9 +142,9 @@ const AUTHORIZED_LID = process.env.AUTHORIZED_LID || 'YOUR_LID_HERE@lid';
 // Conversation context storage: stores recent messages per group
 // Format: { 'groupId': [{ sender: 'name', message: 'text', timestamp: Date }] }
 const groupContexts = new Map();
-const MAX_CONTEXT_MESSAGES = 15; // Store last 15 messages per group
+const MAX_CONTEXT_MESSAGES = 25; // Store last 15 messages per group
 const MAX_MESSAGE_LENGTH = 500; // Truncate individual messages (500 chars ≈ 150-200 tokens)
-const MAX_CONTEXT_TO_SEND = 5; // Send only 5 messages to AI (total ~750-1000 tokens for context)
+const MAX_CONTEXT_TO_SEND = 20; // Send only 5 messages to AI (total ~3000 tokens for context)
 const MAX_GROUPS = 50; // Limit number of groups to track (memory protection)
 
 // Rate limiting per user
@@ -237,6 +237,24 @@ client.on('message', async (message) => {
             return;
         }
         console.log(`   ✅ "Prometheus" trigger found - processing`);
+        
+        // DEBUG COMMAND: Check stored context
+        if (message.body.toLowerCase() === 'prometheus debug context') {
+            const groupId = message.from;
+            const groupContext = groupContexts.get(groupId);
+            
+            if (groupContext && groupContext.length > 0) {
+                let debugMsg = `🔍 *Context Debug*\n\nStored ${groupContext.length} messages:\n\n`;
+                groupContext.forEach((ctx, idx) => {
+                    debugMsg += `${idx + 1}. [${ctx.sender}]: ${ctx.message.substring(0, 100)}${ctx.message.length > 100 ? '...' : ''}\n\n`;
+                });
+                await message.reply(debugMsg);
+            } else {
+                await message.reply('⚠️ No context stored for this group yet.');
+            }
+            return;
+        }
+        
         // Remove "Prometheus" from the message before processing
         message.body = message.body.substring('Prometheus'.length).trim();
     }
@@ -285,12 +303,34 @@ client.on('message', async (message) => {
             const groupId = message.from;
             const groupContext = groupContexts.get(groupId);
             
+            console.log(`\n🔍 Context Debug:`);
+            console.log(`   Group ID: ${groupId}`);
+            console.log(`   Total messages in context: ${groupContext ? groupContext.length : 0}`);
+            
             if (groupContext && groupContext.length > 0) {
-                // Build context string from recent messages (excluding the current one)
-                const contextMessages = groupContext
-                    .slice(0, -1) // Exclude the current "Prometheus" message
-                    .filter(ctx => !ctx.message.startsWith('Prometheus')) // Exclude other Prometheus triggers
-                    .slice(-MAX_CONTEXT_TO_SEND) // Last N messages (configurable)
+                // Log all stored messages for debugging
+                console.log(`   📝 All stored messages:`);
+                groupContext.forEach((ctx, idx) => {
+                    console.log(`      ${idx}: [${ctx.sender}] ${ctx.message.substring(0, 60)}...`);
+                });
+                
+                // Build context string from recent messages
+                // Filter out trigger messages (human saying "Prometheus X") but KEEP AI responses
+                const relevantMessages = groupContext.filter(ctx => {
+                    // Keep AI responses (even though sender is "Prometheus")
+                    if (ctx.isAI) return true;
+                    // Filter out human messages starting with "Prometheus" (trigger words)
+                    return !ctx.message.startsWith('Prometheus');
+                });
+                
+                console.log(`   📊 After filtering triggers (keeping AI responses): ${relevantMessages.length} messages`);
+                
+                // Take last N messages
+                const recentMessages = relevantMessages.slice(-MAX_CONTEXT_TO_SEND);
+                
+                console.log(`   📤 Sending to AI: ${recentMessages.length} messages`);
+                
+                const contextMessages = recentMessages
                     .map(ctx => `${ctx.sender}: ${ctx.message}`)
                     .join('\n');
                 
@@ -302,8 +342,13 @@ ${contextMessages}
 --- End of Context ---
 
 MY QUESTION (this is what you should answer): ${userQuestion}`;
-                    console.log(`📚 Including ${groupContext.length} messages as context`);
+                    console.log(`   ✅ Context prepared successfully\n`);
+                    console.log(`📤 Full message being sent to AI:\n${finalMessage}\n`);
+                } else {
+                    console.log(`   ⚠️ No context available after filtering\n`);
                 }
+            } else {
+                console.log(`   ⚠️ No context stored for this group yet\n`);
             }
         }
         
@@ -321,6 +366,38 @@ MY QUESTION (this is what you should answer): ${userQuestion}`;
         
         // Send reply
         await message.reply(aiResponse);
+        
+        // STORE AI RESPONSE IN CONTEXT (for group chats only)
+        if (chat.isGroup) {
+            const groupId = message.from;
+            const groupContext = groupContexts.get(groupId);
+            
+            if (groupContext) {
+                // Truncate AI response if too long
+                let truncatedResponse = aiResponse;
+                if (aiResponse.length > MAX_MESSAGE_LENGTH) {
+                    truncatedResponse = aiResponse.substring(0, MAX_MESSAGE_LENGTH) + '... [truncated]';
+                }
+                
+                // Add AI response to context
+                const aiContextEntry = {
+                    sender: 'Prometheus',
+                    message: truncatedResponse,
+                    timestamp: new Date(),
+                    isAuthorizedUser: false,
+                    isAI: true // Mark as AI response
+                };
+                
+                groupContext.push(aiContextEntry);
+                
+                // Keep only the last MAX_CONTEXT_MESSAGES
+                if (groupContext.length > MAX_CONTEXT_MESSAGES) {
+                    groupContext.shift();
+                }
+                
+                console.log(`💾 Stored AI response in context: ${truncatedResponse.substring(0, 50)}...`);
+            }
+        }
         
     } catch (error) {
         console.error('❌ Error processing message:', error.message);

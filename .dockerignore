@@ -1,0 +1,51 @@
+# Ignore .env files (contain sensitive credentials)
+.env
+.env.*
+!.env.example
+
+# Ignore Git
+.git
+.gitignore
+.gitattributes
+
+# Ignore documentation
+*.md
+LICENSE
+
+# Ignore images (not needed in Docker images)
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Ignore build scripts (only needed on host)
+build-and-push.sh
+send_env2pi.sh
+ssh_pi.sh
+
+# Ignore Docker Compose (only needed on host)
+docker-compose.yml
+docker-compose.*.yml
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (handled by npm install in Dockerfile)
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
