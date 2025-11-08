@@ -10,8 +10,6 @@ A dockerized chatbot running Google's Gemma-2-2b model on Raspberry Pi 5, with F
 
 ## 📑 Table of Contents
 
-- [🔐 Security & Authorization](#-security--authorization)
-  - [How to Configure Your Phone Number](#how-to-configure-your-phone-number)
 - [📋 Overview](#-overview)
 - [🏗️ Architecture](#️-architecture)
 - [🚀 Quick Start](#-quick-start)
@@ -19,6 +17,8 @@ A dockerized chatbot running Google's Gemma-2-2b model on Raspberry Pi 5, with F
 - [📦 Deployment Workflow](#-deployment-workflow)
   - [Step 1: Build on Your Mac](#step-1-build-on-your-mac)
   - [Step 2: One-Time Setup on Raspberry Pi](#step-2-one-time-setup-on-raspberry-pi)
+- [🔐 Security & Authorization](#-security--authorization)
+  - [How to Configure Your Phone Number](#how-to-configure-your-phone-number)
 - [💬 WhatsApp Usage & Customization](#-whatsapp-usage--customization)
 - [🧠 Context-Aware Group Conversations](#-context-aware-group-conversations)
 - [🛡️ Anti-Spam & Abuse Protections](#️-anti-spam--abuse-protections)
@@ -33,111 +33,6 @@ A dockerized chatbot running Google's Gemma-2-2b model on Raspberry Pi 5, with F
 - [💡 Tips](#-tips)
 
 ---
-
-## 🔐 Security & Authorization
-
-This bot is configured with **strict authorization controls**:
-
-- **Phone Number Authorization**: Only responds to messages from YOUR specific WhatsApp phone number (not name-based, so completely unique)
-- **Dual ID System**: Uses both your regular phone number (`@c.us`) for direct chats AND your internal WhatsApp ID (`@lid`) for group chats
-- **Group Trigger Word**: In group chats, only responds when you start your message with "Prometheus" (you can change the trigger word name of your AI; I used the name of a character in my sci-fi epic _GÖD'S GATE_)
-- **Private Conversations**: In direct chats, responds to all your messages
-
-**Why phone number instead of name?**
-- ✅ Names can be duplicated (multiple people named "John" in groups)
-- ✅ Phone numbers are unique identifiers
-- ✅ No one can impersonate you even with the same name
-
-**Why two IDs (phone number + internal ID)?**
-- WhatsApp uses different identifier formats in different contexts
-- Direct chats use `@c.us` format (your phone number)
-- Group chats use `@lid` format (WhatsApp's internal ID)
-- Both IDs are _you_ - just different formats
-
-**Example Usage:**
-- Direct chat: "What is the capital of France?" → AI responds
-- Group chat: "Prometheus what is the capital of France?" → AI responds
-- Group chat: "What is the capital of France?" → AI ignores (no "Prometheus" prefix)
-- Anyone else in the group (even with your name) messages the bot → AI ignores completely
-
-⚠️ **IMPORTANT WARNING**: If you use your **personal WhatsApp account** (not a separate WhatsApp Business number) to initialize the bot, the AI will respond to **ALL incoming messages** as if it were you. Meta/WhatsApp will not detect this. **This is why I strongly recommend using a separate phone number for the bot.** Unless you want to ruin all your relationships :D
-
-### How to Configure Your Phone Number
-
-Your phone numbers are stored securely in a `.env` file that's excluded from GitHub:
-
-1. **Format your phone number:**
-   - Take your number with country code: `+49 598 65 85 32`
-   - Remove `+` and spaces: `49598658532`
-   - Add `@c.us` at the end: `49598658532@c.us`
-
-2. **Create your .env file:**
-   ```bash
-   # Copy the example file
-   cp .env.example .env
-   
-   # Edit with your configuration
-   nano .env
-   ```
-   
-   The `.env` file contains:
-   ```bash
-   # Required - WhatsApp Authorization
-   AUTHORIZED_NUMBER=YOUR_NUMBER_HERE@c.us
-   AUTHORIZED_LID=YOUR_LID_HERE@lid
-   
-   # Optional - AI Configuration (see CUSTOMIZATION_GUIDE.md)
-   MODEL_NAME=gemma2:2b
-   SYSTEM_PROMPT=You are Prometheus, a helpful AI assistant...
-   ```
-   
-   Replace:
-   - `YOUR_NUMBER_HERE@c.us` with your phone number (e.g., `49598658532@c.us`)
-   - `YOUR_LID_HERE@lid` - Leave as placeholder for now (you'll find this after first group message)
-   - `MODEL_NAME` and `SYSTEM_PROMPT` - Optional, use defaults or customize (see [CUSTOMIZATION_GUIDE.md](CUSTOMIZATION_GUIDE.md))
-
-3. **Copy .env to your Pi:**
-   ```bash
-   # On your Mac
-   scp .env user@your-pi-ip:~/
-   
-   # On Pi
-   sudo mv ~/.env /var/www/ollama_chatbot/.env
-   ```
-
-4. **Find your internal ID (for group chats):**
-   
-   After the bot is running:
-   
-   ```bash
-   # On Pi - watch the logs
-   sudo docker logs whatsapp-bridge -f
-   ```
-   
-   Send a message in a group (with or without "Prometheus"). You'll see:
-   ```
-   🔍 Group message received:
-      Group: My Test Group
-      Sender: 98765432109@lid    ← This is your LID!
-      Authorized Phone: 49598658532@c.us
-      Authorized LID: YOUR_LID_HERE@lid
-   ```
-   
-   Copy that `Sender` value (e.g., `98765432109@lid`) and update your `.env`:
-   ```bash
-   # On Pi
-   nano /var/www/ollama_chatbot/.env
-   ```
-   
-   Replace `YOUR_LID_HERE@lid` with your actual LID, save (Ctrl+X, Y, Enter), then:
-   ```bash
-   sudo docker-compose restart whatsapp
-   ```
-
-5. **Your numbers are now secure:**
-   - ✅ `.env` is in `.gitignore` (never pushed to GitHub)
-   - ✅ Docker reads it from the environment
-   - ✅ No hardcoded credentials in your code 
 
 ## 📋 Overview
 
@@ -640,6 +535,113 @@ ls -la /var/www/ollama_chatbot/.env
 
 # If missing, copy it from your Mac again
 ```
+
+## 🔐 Security & Authorization
+
+This bot is configured with **strict authorization controls**:
+
+- **Phone Number Authorization**: Only responds to messages from YOUR specific WhatsApp phone number (not name-based, so completely unique)
+- **Dual ID System**: Uses both your regular phone number (`@c.us`) for direct chats AND your internal WhatsApp ID (`@lid`) for group chats
+- **Group Trigger Word**: In group chats, only responds when you start your message with "Prometheus" (you can change the trigger word name of your AI; I used the name of a character in my sci-fi epic _GÖD'S GATE_)
+- **Private Conversations**: In direct chats, responds to all your messages
+
+**Why phone number instead of name?**
+- ✅ Names can be duplicated (multiple people named "John" in groups)
+- ✅ Phone numbers are unique identifiers
+- ✅ No one can impersonate you even with the same name
+
+**Why two IDs (phone number + internal ID)?**
+- WhatsApp uses different identifier formats in different contexts
+- Direct chats use `@c.us` format (your phone number)
+- Group chats use `@lid` format (WhatsApp's internal ID)
+- Both IDs are _you_ - just different formats
+
+**Example Usage:**
+- Direct chat: "What is the capital of France?" → AI responds
+- Group chat: "Prometheus what is the capital of France?" → AI responds
+- Group chat: "What is the capital of France?" → AI ignores (no "Prometheus" prefix)
+- Anyone else in the group (even with your name) messages the bot → AI ignores completely
+
+⚠️ **IMPORTANT WARNING**: If you use your **personal WhatsApp account** (not a separate WhatsApp Business number) to initialize the bot, the AI will respond to **ALL incoming messages** as if it were you. Meta/WhatsApp will not detect this. **This is why I strongly recommend using a separate phone number for the bot.** Unless you want to ruin all your relationships :D
+
+### How to Configure Your Phone Number
+
+Your phone numbers are stored securely in a `.env` file that's excluded from GitHub:
+
+1. **Format your phone number:**
+   - Take your number with country code: `+49 598 65 85 32`
+   - Remove `+` and spaces: `49598658532`
+   - Add `@c.us` at the end: `49598658532@c.us`
+
+2. **Create your .env file:**
+   ```bash
+   # Copy the example file
+   cp .env.example .env
+   
+   # Edit with your configuration
+   nano .env
+   ```
+   
+   The `.env` file contains:
+   ```bash
+   # Required - WhatsApp Authorization
+   AUTHORIZED_NUMBER=YOUR_NUMBER_HERE@c.us
+   AUTHORIZED_LID=YOUR_LID_HERE@lid
+   
+   # Optional - AI Configuration (see CUSTOMIZATION_GUIDE.md)
+   MODEL_NAME=gemma2:2b
+   SYSTEM_PROMPT=You are Prometheus, a helpful AI assistant...
+   ```
+   
+   Replace:
+   - `YOUR_NUMBER_HERE@c.us` with your phone number (e.g., `49598658532@c.us`)
+   - `YOUR_LID_HERE@lid` - Leave as placeholder for now (you'll find this after first group message)
+   - `MODEL_NAME` and `SYSTEM_PROMPT` - Optional, use defaults or customize (see [CUSTOMIZATION_GUIDE.md](CUSTOMIZATION_GUIDE.md))
+
+3. **Copy .env to your Pi:**
+   ```bash
+   # On your Mac
+   scp .env user@your-pi-ip:~/
+   
+   # On Pi
+   sudo mv ~/.env /var/www/ollama_chatbot/.env
+   ```
+
+4. **Find your internal ID (for group chats):**
+   
+   After the bot is running:
+   
+   ```bash
+   # On Pi - watch the logs
+   sudo docker logs whatsapp-bridge -f
+   ```
+   
+   Send a message in a group (with or without "Prometheus"). You'll see:
+   ```
+   🔍 Group message received:
+      Group: My Test Group
+      Sender: 98765432109@lid    ← This is your LID!
+      Authorized Phone: 49598658532@c.us
+      Authorized LID: YOUR_LID_HERE@lid
+   ```
+   
+   Copy that `Sender` value (e.g., `98765432109@lid`) and update your `.env`:
+   ```bash
+   # On Pi
+   nano /var/www/ollama_chatbot/.env
+   ```
+   
+   Replace `YOUR_LID_HERE@lid` with your actual LID, save (Ctrl+X, Y, Enter), then:
+   ```bash
+   sudo docker-compose restart whatsapp
+   ```
+
+5. **Your numbers are now secure:**
+   - ✅ `.env` is in `.gitignore` (never pushed to GitHub)
+   - ✅ Docker reads it from the environment
+   - ✅ No hardcoded credentials in your code 
+
+
 
 ## 🧪 Testing
 
