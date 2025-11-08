@@ -6,6 +6,34 @@
 
 A dockerized chatbot running Google's Gemma-2-2b model on Raspberry Pi 5, with FastAPI wrapper and WhatsApp integration.
 
+---
+
+## 📑 Table of Contents
+
+- [🔐 Security & Authorization](#-security--authorization)
+  - [How to Configure Your Phone Number](#how-to-configure-your-phone-number)
+- [📋 Overview](#-overview)
+- [🏗️ Architecture](#️-architecture)
+- [🚀 Quick Start](#-quick-start)
+  - [Prerequisites](#prerequisites)
+- [📦 Deployment Workflow](#-deployment-workflow)
+  - [Step 1: Build on Your Mac](#step-1-build-on-your-mac)
+  - [Step 2: One-Time Setup on Raspberry Pi](#step-2-one-time-setup-on-raspberry-pi)
+- [💬 WhatsApp Usage & Customization](#-whatsapp-usage--customization)
+- [🧠 Context-Aware Group Conversations](#-context-aware-group-conversations)
+- [🛡️ Anti-Spam & Abuse Protections](#️-anti-spam--abuse-protections)
+- [🎨 Customizing WhatsApp Filters](#-customizing-whatsapp-filters)
+- [🐛 Troubleshooting](#-troubleshooting)
+- [🧪 Testing](#-testing)
+- [🌐 API Documentation](#-api-documentation)
+- [🔧 Useful Commands](#-useful-commands)
+- [📊 Resource Usage](#-resource-usage)
+- [🔄 CI/CD Pipeline](#-cicd-pipeline)
+- [📚 Tech Stack](#-tech-stack)
+- [💡 Tips](#-tips)
+
+---
+
 ## 🔐 Security & Authorization
 
 This bot is configured with **strict authorization controls**:
