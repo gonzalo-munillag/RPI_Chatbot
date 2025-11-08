@@ -166,21 +166,22 @@ client.on('message', async (message) => {
         ? message.author  // In groups, use message.author
         : message.from;   // In direct chats, use message.from
     
-    // CONTEXT STORAGE: Store all group messages for context (before authorization check)
-    if (chat.isGroup) {
-        const groupId = message.from; // Group chat ID
-        const contact = await message.getContact();
-        const senderName = contact.pushname || contact.name || senderNumber;
-        
-        // PROTECTION 1: Limit number of groups tracked (memory protection)
-        if (!groupContexts.has(groupId) && groupContexts.size >= MAX_GROUPS) {
-            console.log(`⚠️ Max groups (${MAX_GROUPS}) reached, not tracking new group: ${chat.name}`);
-            // Don't track new groups if we've hit the limit
-            // Existing groups continue to work
+    // CONTEXT STORAGE: Store messages for context (both groups and private chats)
+    const chatId = message.from; // Chat ID (group or private)
+    const contact = await message.getContact();
+    const senderName = contact.pushname || contact.name || senderNumber;
+    
+    // Determine if we should store context
+    const shouldStoreContext = chat.isGroup || (!chat.isGroup && (senderNumber === AUTHORIZED_NUMBER || senderNumber === AUTHORIZED_LID));
+    
+    if (shouldStoreContext) {
+        // PROTECTION 1: Limit number of chats tracked (memory protection)
+        if (!groupContexts.has(chatId) && groupContexts.size >= MAX_GROUPS) {
+            console.log(`⚠️ Max chats (${MAX_GROUPS}) reached, not tracking new chat: ${chat.name || 'Private'}`);
         } else {
-            // Initialize context array for this group if it doesn't exist
-            if (!groupContexts.has(groupId)) {
-                groupContexts.set(groupId, []);
+            // Initialize context array for this chat if it doesn't exist
+            if (!groupContexts.has(chatId)) {
+                groupContexts.set(chatId, []);
             }
             
             // PROTECTION 2: Truncate long messages
@@ -198,15 +199,16 @@ client.on('message', async (message) => {
                 isAuthorizedUser: (senderNumber === AUTHORIZED_NUMBER) || (senderNumber === AUTHORIZED_LID)
             };
             
-            const groupContext = groupContexts.get(groupId);
-            groupContext.push(contextEntry);
+            const chatContext = groupContexts.get(chatId);
+            chatContext.push(contextEntry);
             
             // Keep only the last MAX_CONTEXT_MESSAGES
-            if (groupContext.length > MAX_CONTEXT_MESSAGES) {
-                groupContext.shift(); // Remove oldest message
+            if (chatContext.length > MAX_CONTEXT_MESSAGES) {
+                chatContext.shift(); // Remove oldest message
             }
             
-            console.log(`📝 Stored context: [${chat.name}] ${senderName}: ${truncatedMessage.substring(0, 50)}...`);
+            const chatLabel = chat.isGroup ? `[${chat.name}]` : '[Private Chat]';
+            console.log(`📝 Stored context: ${chatLabel} ${senderName}: ${truncatedMessage.substring(0, 50)}...`);
         }
     }
     
@@ -296,60 +298,73 @@ client.on('message', async (message) => {
         // Show typing indicator
         chat.sendStateTyping();
         
-        // Prepare the message with context if in a group
+        // Get chat ID and context (will be reused throughout)
+        const chatId = message.from;
+        let chatContext = groupContexts.get(chatId);
+        
+        // Prepare the message with context (for both groups and private chats)
         let finalMessage = userQuestion;
         
-        if (chat.isGroup) {
-            const groupId = message.from;
-            const groupContext = groupContexts.get(groupId);
+        if (chatContext && chatContext.length > 0) {
+            const chatLabel = chat.isGroup ? 'Group' : 'Private Chat';
             
             console.log(`\n🔍 Context Debug:`);
-            console.log(`   Group ID: ${groupId}`);
-            console.log(`   Total messages in context: ${groupContext ? groupContext.length : 0}`);
+            console.log(`   Chat Type: ${chatLabel}`);
+            console.log(`   Chat ID: ${chatId}`);
+            console.log(`   Total messages in context: ${chatContext.length}`);
             
-            if (groupContext && groupContext.length > 0) {
-                // Log all stored messages for debugging
-                console.log(`   📝 All stored messages:`);
-                groupContext.forEach((ctx, idx) => {
-                    console.log(`      ${idx}: [${ctx.sender}] ${ctx.message.substring(0, 60)}...`);
-                });
-                
-                // Build context string from recent messages
-                // Filter out trigger messages (human saying "Prometheus X") but KEEP AI responses
-                const relevantMessages = groupContext.filter(ctx => {
-                    // Keep AI responses (even though sender is "Prometheus")
-                    if (ctx.isAI) return true;
-                    // Filter out human messages starting with "Prometheus" (trigger words)
-                    return !ctx.message.startsWith('Prometheus');
-                });
-                
-                console.log(`   📊 After filtering triggers (keeping AI responses): ${relevantMessages.length} messages`);
-                
-                // Take last N messages
-                const recentMessages = relevantMessages.slice(-MAX_CONTEXT_TO_SEND);
-                
-                console.log(`   📤 Sending to AI: ${recentMessages.length} messages`);
-                
-                const contextMessages = recentMessages
-                    .map(ctx => `${ctx.sender}: ${ctx.message}`)
-                    .join('\n');
-                
-                if (contextMessages) {
-                    finalMessage = `CONTEXT: The following are recent messages from a group chat. Use them ONLY if relevant to answer my question below. If my question is unrelated to this context, ignore the context completely and answer my question directly.
+            // Log all stored messages for debugging
+            console.log(`   📝 All stored messages:`);
+            chatContext.forEach((ctx, idx) => {
+                console.log(`      ${idx}: [${ctx.sender}] ${ctx.message.substring(0, 60)}...`);
+            });
+            
+            // Build context string from recent messages
+            // For groups: Filter out YOUR trigger messages but KEEP AI responses
+            // For private chats: Keep everything (no "Prometheus" triggers to filter)
+            const relevantMessages = chatContext.filter(ctx => {
+                // Keep AI responses
+                if (ctx.isAI) return true;
+                // For groups: filter out only YOUR "Prometheus" triggers (not other people's)
+                if (chat.isGroup && ctx.message.startsWith('Prometheus') && ctx.isAuthorizedUser) {
+                    console.log(`      ❌ Filtered out your trigger: "${ctx.message.substring(0, 40)}..."`);
+                    return false; // Filter out your own triggers only
+                }
+                // Keep everything else (including other people's messages about Prometheus)
+                return true;
+            });
+            
+            console.log(`   📊 After filtering: ${relevantMessages.length} messages (from ${chatContext.length} total)`);
+            
+            // Take last N messages
+            const recentMessages = relevantMessages.slice(-MAX_CONTEXT_TO_SEND);
+            
+            console.log(`   📤 Sending to AI: ${recentMessages.length} messages`);
+            recentMessages.forEach((ctx, idx) => {
+                const label = ctx.isAI ? '🤖' : '👤';
+                console.log(`      ${label} [${ctx.sender}]: ${ctx.message.substring(0, 50)}...`);
+            });
+            
+            const contextMessages = recentMessages
+                .map(ctx => `${ctx.sender}: ${ctx.message}`)
+                .join('\n');
+            
+            if (contextMessages) {
+                const contextType = chat.isGroup ? 'group chat' : 'conversation';
+                finalMessage = `CONTEXT: The following are recent messages from our ${contextType}. Use them ONLY if relevant to answer my question below. If my question is unrelated to this context, ignore the context completely and answer my question directly.
 
---- Recent Group Messages ---
+--- Recent Messages ---
 ${contextMessages}
 --- End of Context ---
 
 MY QUESTION (this is what you should answer): ${userQuestion}`;
-                    console.log(`   ✅ Context prepared successfully\n`);
-                    console.log(`📤 Full message being sent to AI:\n${finalMessage}\n`);
-                } else {
-                    console.log(`   ⚠️ No context available after filtering\n`);
-                }
+                console.log(`   ✅ Context prepared successfully\n`);
+                console.log(`📤 Full message being sent to AI:\n${finalMessage}\n`);
             } else {
-                console.log(`   ⚠️ No context stored for this group yet\n`);
+                console.log(`   ⚠️ No context available after filtering\n`);
             }
+        } else {
+            console.log(`   ⚠️ No context stored for this chat yet\n`);
         }
         
         // Call Ollama API
@@ -367,36 +382,35 @@ MY QUESTION (this is what you should answer): ${userQuestion}`;
         // Send reply
         await message.reply(aiResponse);
         
-        // STORE AI RESPONSE IN CONTEXT (for group chats only)
-        if (chat.isGroup) {
-            const groupId = message.from;
-            const groupContext = groupContexts.get(groupId);
-            
-            if (groupContext) {
-                // Truncate AI response if too long
-                let truncatedResponse = aiResponse;
-                if (aiResponse.length > MAX_MESSAGE_LENGTH) {
-                    truncatedResponse = aiResponse.substring(0, MAX_MESSAGE_LENGTH) + '... [truncated]';
-                }
-                
-                // Add AI response to context
-                const aiContextEntry = {
-                    sender: 'Prometheus',
-                    message: truncatedResponse,
-                    timestamp: new Date(),
-                    isAuthorizedUser: false,
-                    isAI: true // Mark as AI response
-                };
-                
-                groupContext.push(aiContextEntry);
-                
-                // Keep only the last MAX_CONTEXT_MESSAGES
-                if (groupContext.length > MAX_CONTEXT_MESSAGES) {
-                    groupContext.shift();
-                }
-                
-                console.log(`💾 Stored AI response in context: ${truncatedResponse.substring(0, 50)}...`);
+        // STORE AI RESPONSE IN CONTEXT (for both groups and private chats)
+        // Re-fetch context in case it was created during processing
+        chatContext = groupContexts.get(chatId);
+        
+        if (chatContext) {
+            // Truncate AI response if too long
+            let truncatedResponse = aiResponse;
+            if (aiResponse.length > MAX_MESSAGE_LENGTH) {
+                truncatedResponse = aiResponse.substring(0, MAX_MESSAGE_LENGTH) + '... [truncated]';
             }
+            
+            // Add AI response to context
+            const aiContextEntry = {
+                sender: 'Prometheus',
+                message: truncatedResponse,
+                timestamp: new Date(),
+                isAuthorizedUser: false,
+                isAI: true // Mark as AI response
+            };
+            
+            chatContext.push(aiContextEntry);
+            
+            // Keep only the last MAX_CONTEXT_MESSAGES
+            if (chatContext.length > MAX_CONTEXT_MESSAGES) {
+                chatContext.shift();
+            }
+            
+            const chatLabel = chat.isGroup ? `[${chat.name}]` : '[Private Chat]';
+            console.log(`💾 Stored AI response in context ${chatLabel}: ${truncatedResponse.substring(0, 50)}...`);
         }
         
     } catch (error) {
