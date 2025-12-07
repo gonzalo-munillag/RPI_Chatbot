@@ -1,0 +1,4 @@
+# This file keeps the models/ directory in git.
+# Whisper models are downloaded automatically on first run.
+# They are large (39MB-1.5GB) and should NOT be committed to git.
+

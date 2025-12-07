@@ -57,9 +57,33 @@ docker buildx build \
     .
 
 echo ""
+echo "🚀 Building Whisper STT image..."
+echo ""
+
+docker buildx build \
+    --platform linux/arm64,linux/amd64 \
+    -t docker.io/$DOCKER_USERNAME/whisper-stt:latest \
+    -f whisper-stt/Dockerfile \
+    --push \
+    .
+
+echo ""
+echo "🚀 Building Wake Word (openWakeWord) image..."
+echo ""
+
+docker buildx build \
+    --platform linux/arm64,linux/amd64 \
+    -t docker.io/$DOCKER_USERNAME/wakeword:latest \
+    -f wakeword/Dockerfile \
+    --push \
+    .
+
+echo ""
 echo "✅ All images built and pushed successfully!"
 echo "   Images: $DOCKER_USERNAME/ollama-gemma:latest"
 echo "           $DOCKER_USERNAME/whatsapp-bridge:latest"
 echo "           $DOCKER_USERNAME/piper-tts:latest"
+echo "           $DOCKER_USERNAME/whisper-stt:latest"
+echo "           $DOCKER_USERNAME/wakeword:latest"
 echo ""
 echo "Deploy on Pi with: docker-compose up -d"

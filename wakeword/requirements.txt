@@ -1,0 +1,31 @@
+# =============================================================================
+# Wake Word Detection Dependencies
+# =============================================================================
+# These are the Python packages required for wake word detection.
+# Install with: pip install -r requirements.txt
+# =============================================================================
+
+# openwakeword - Lightweight wake word detection
+# Supports custom wake words and pre-trained models
+# Uses ONNX Runtime for efficient inference on CPU
+openwakeword>=0.6.0
+
+# FastAPI - Modern web framework for building APIs
+# Used to create HTTP endpoints for wake word status
+fastapi==0.104.1
+
+# Uvicorn - ASGI server to run FastAPI
+uvicorn==0.24.0
+
+# Pydantic - Data validation
+pydantic==2.5.0
+
+# Requests - For calling other services (STT, AI, TTS)
+requests>=2.31.0
+
+# SoundDevice - For audio capture
+sounddevice>=0.4.6
+
+# NumPy - Required for audio processing
+numpy>=1.24.0
+

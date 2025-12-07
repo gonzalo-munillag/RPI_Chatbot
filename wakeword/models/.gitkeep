@@ -1,0 +1,12 @@
+# Wake Word Models Directory
+# 
+# openWakeWord models are downloaded automatically on first run.
+# Pre-trained models include:
+#   - hey_jarvis
+#   - alexa
+#   - hey_mycroft
+#   - hey_rhasspy
+#   - ok_nabu
+#
+# Custom models can be placed here.
+

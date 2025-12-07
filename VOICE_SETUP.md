@@ -888,29 +888,29 @@ Piper is a fast, local neural text-to-speech system that converts text into natu
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      PIPER TTS ARCHITECTURE                              │
+│                      PIPER TTS ARCHITECTURE                             │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
+│                                                                         │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
 │  │   WhatsApp   │    │   FastAPI    │    │    Piper     │               │
 │  │    Bridge    │───▶│  TTS Server  │───▶│   Binary     │───▶ 🔊        │
-│  │  (Node.js)   │    │  (Python)    │    │  (C++/ONNX)  │   Speaker    │
+│  │  (Node.js)   │    │  (Python)    │    │  (C++/ONNX)  │   Speaker     │
 │  └──────────────┘    └──────────────┘    └──────────────┘               │
-│         │                   │                   │                        │
-│         │              POST /speak              │                        │
-│         │                   │                   │                        │
+│         │                   │                   │                       │
+│         │              POST /speak              │                       │
+│         │                   │                   │                       │
 │    "speak hello"      Receives text       Generates audio               │
 │                       Calls Piper         Plays via ALSA                │
-│                                                                          │
+│                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 **How Piper generates speech:**
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────┐
 │                        PIPER INTERNAL FLOW                               │
-├─────────────────────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  1. TEXT INPUT                                                           │
 │     "Hello, I am Prometheus"                                             │
@@ -927,10 +927,10 @@ Piper is a fast, local neural text-to-speech system that converts text into natu
 │              │                                                           │
 │              ▼                                                           │
 │  4. AUDIO OUTPUT                                                         │
-│     Raw PCM audio (22050 Hz, 16-bit, mono)                              │
+│     Raw PCM audio (22050 Hz, 16-bit, mono)                               │
 │     Played through USB speaker via ALSA                                  │
 │                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Docker Container Structure
@@ -987,7 +987,7 @@ download_voice "en_US-amy-medium" "en" "en_US" "amy" "medium"       # American f
 download_voice "en_US-ryan-medium" "en" "en_US" "ryan" "medium"     # American male
 ```
 
-**Available voices:**
+**Available voices in this repo:**
 
 | Voice ID | Accent | Gender | Quality |
 |----------|--------|--------|---------|
@@ -1115,21 +1115,47 @@ piper-tts:
    sudo docker-compose up -d piper-tts
    ```
 
-**To change audio device:**
+**Audio device (usually no change needed):**
 
-If your USB speaker is on a different card number:
+The audio device defaults to `plughw:2,0` (USB speaker on card 2) which is set in `docker-compose.yml`. This works for most setups.
+
+If your USB speaker is on a **different** card number:
 
 1. Find your card number:
    ```bash
    aplay -l
    ```
 
-2. Update `.env`:
+2. Add to `.env` on the Pi (only if card ≠ 2):
    ```bash
    AUDIO_DEVICE=plughw:X,0  # Replace X with your card number
    ```
 
 3. Restart: `sudo docker-compose up -d piper-tts`
+
+> **Note**: The `.asoundrc` file on the Pi configures the **host's** default audio device. The Docker container uses the `AUDIO_DEVICE` environment variable instead because containers don't automatically inherit the host's ALSA configuration.
+
+### Adjusting Speaker Volume
+
+If the TTS audio is too quiet, use `alsamixer` to adjust the volume:
+
+```bash
+# Launch interactive volume control
+alsamixer
+```
+
+**Controls:**
+- `F6` - Select your USB sound card (e.g., "UACDemoV10")
+- `↑` / `↓` - Increase / decrease volume
+- `M` - Mute / unmute
+- `Esc` - Exit
+
+**Make volume persistent:**
+```bash
+sudo alsactl store
+```
+
+> **Note**: The `amixer` command-line tool may not work with all USB sound cards. Use `alsamixer` for best compatibility.
 
 ### Troubleshooting
 
@@ -1189,7 +1215,279 @@ Piper should generate speech in near real-time on RPI5. If it's slow:
 
 ## 👂 Step 6: Install Whisper STT
 
-*Coming in next step...*
+Whisper STT (Speech-to-Text) converts spoken audio from your microphone into text that the AI can understand.
+
+### What is Whisper?
+
+**Whisper** is OpenAI's open-source speech recognition model, released in 2022. It's trained on 680,000 hours of multilingual audio and supports:
+- 99 languages
+- Automatic language detection
+- Punctuation and formatting
+- Robust handling of accents and background noise
+
+**Why faster-whisper?**
+
+We use [faster-whisper](https://github.com/SYSTRAN/faster-whisper) instead of the original OpenAI Whisper because:
+- **4x faster** inference using CTranslate2 optimization
+- **Lower memory** usage (crucial for RPI5's 8GB RAM)
+- **int8 quantization** for efficient CPU inference
+- Same accuracy as the original model
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      WHISPER STT ARCHITECTURE                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
+│  │  Microphone  │    │   FastAPI    │    │   Whisper    │               │
+│  │    (USB)     │───▶│  STT Server  │───▶│   Model      │               │
+│  │  plughw:3,0  │    │  (Python)    │    │  (tiny/int8) │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘               │
+│         │                   │                   │                       │
+│    Audio Input         Port 5002            Transcription               │
+│    (16kHz mono)        (external)              Output                   │
+│                        Port 5000                                        │
+│                        (internal)                                       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Port Mapping
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     RASPBERRY PI (Host)                         │
+│                                                                 │
+│   curl http://localhost:5002/listen                             │
+│                            │                                    │
+│                            ▼                                    │
+│                     Port 5002 (Host)                            │
+│                            │                                    │
+│   ┌────────────────────────┼────────────────────────────────┐   │
+│   │        DOCKER CONTAINER (whisper-stt)                   │   │
+│   │                        │                                │   │
+│   │                        ▼                                │   │
+│   │                  Port 5000 (Container)                  │   │
+│   │                        │                                │   │
+│   │                        ▼                                │   │
+│   │              Uvicorn Server listening                   │   │
+│   │                                                         │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Service | External Port (Pi) | Internal Port (Container) |
+|---------|-------------------|--------------------------|
+| Piper TTS | 5000 | 5000 |
+| **Whisper STT** | **5002** | **5000** |
+
+> **Note**: We use port 5002 externally because 5001 may be used by other services (e.g., socat tunnels).
+
+### Whisper Model Sizes
+
+| Model | Size | VRAM | Relative Speed | RPI5 Suitable |
+|-------|------|------|----------------|---------------|
+| **tiny** | 39 MB | ~1 GB | ~32x | ✅ Recommended |
+| base | 74 MB | ~1 GB | ~16x | ✅ Good |
+| small | 244 MB | ~2 GB | ~6x | ⚠️ Slower |
+| medium | 769 MB | ~5 GB | ~2x | ❌ Too slow |
+| large | 1550 MB | ~10 GB | 1x | ❌ Won't fit |
+
+We use **tiny** by default for best latency (~2 seconds on RPI5).
+
+### Files Created
+
+```
+whisper-stt/
+├── Dockerfile           # Container build instructions
+├── stt_server.py        # FastAPI HTTP server
+├── requirements.txt     # Python dependencies
+└── models/
+    └── .gitkeep         # Models downloaded on first run
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/listen` | POST | Record from mic & transcribe |
+| `/transcribe` | POST | Upload audio file & transcribe |
+| `/models` | GET | List available models |
+
+### Setup Steps
+
+The Whisper STT service is already built into the Docker image. Just deploy:
+
+**1. Pull and start the service:**
+```bash
+# On Pi
+cd /var/www/ollama_chatbot
+sudo docker-compose pull whisper-stt
+sudo docker-compose up -d whisper-stt
+```
+
+**2. Check container status:**
+```bash
+sudo docker ps | grep whisper
+# Should show: Up (healthy)
+```
+
+**3. Check logs (model downloads on first run):**
+```bash
+sudo docker logs whisper-stt -f
+```
+
+You'll see:
+```
+🎤 Whisper STT Server Starting
+Loading Whisper model: tiny
+✅ Whisper model loaded in 12.23s
+✅ Whisper STT Server Ready
+Uvicorn running on http://0.0.0.0:5000
+```
+
+### Testing
+
+**Test 1: Health Check**
+```bash
+curl http://localhost:5002/health
+```
+
+Expected:
+```json
+{
+  "status": "healthy",
+  "model": "tiny",
+  "compute_type": "int8",
+  "audio_device": "plughw:3,0",
+  "sample_rate": 16000
+}
+```
+
+**Test 2: Record and Transcribe (speak into your mic!)**
+```bash
+curl -X POST http://localhost:5002/listen \
+  -H "Content-Type: application/json" \
+  -d '{"duration": 5}'
+```
+
+Say something during the 5 seconds! Expected:
+```json
+{
+  "success": true,
+  "text": "Hello, this is a test of the speech recognition system.",
+  "language": "en",
+  "confidence": 0.85,
+  "duration_ms": 1948
+}
+```
+
+**Test 3: Transcribe an audio file**
+```bash
+# First record a test file
+arecord -D plughw:3,0 -f S16_LE -r 16000 -d 5 /tmp/test_stt.wav
+
+# Then transcribe it
+curl -X POST http://localhost:5002/transcribe \
+  -F "file=@/tmp/test_stt.wav"
+```
+
+### Configuration
+
+**Change Whisper model** (in `.env` on Pi):
+```bash
+# Options: tiny, base, small
+WHISPER_MODEL=base
+```
+
+Then restart:
+```bash
+sudo docker-compose up -d --force-recreate whisper-stt
+```
+
+**Change microphone device** (if card ≠ 3):
+```bash
+# In .env
+AUDIO_DEVICE_MIC=plughw:X,0  # Replace X with your mic card number
+```
+
+### docker-compose.yml Configuration
+
+```yaml
+# Service 4: Whisper STT (Speech-to-Text)
+whisper-stt:
+  image: ${DOCKER_USERNAME}/whisper-stt:latest
+  container_name: whisper-stt
+  ports:
+    - "127.0.0.1:5002:5000"   # STT API (localhost only)
+  devices:
+    - /dev/snd:/dev/snd       # Access to audio devices (microphone)
+  volumes:
+    - whisper-models:/app/models  # Persist downloaded Whisper models
+  restart: unless-stopped
+  environment:
+    - WHISPER_MODEL=${WHISPER_MODEL:-tiny}    # Model size
+    - COMPUTE_TYPE=int8                        # Fastest on CPU
+    - AUDIO_DEVICE=${AUDIO_DEVICE_MIC:-plughw:3,0}  # Microphone
+    - SAMPLE_RATE=16000                        # 16kHz optimal for Whisper
+  group_add:
+    - audio                   # Add to audio group for microphone access
+  networks:
+    - chatbot-network
+```
+
+### Troubleshooting
+
+#### "Connection reset by peer"
+
+The container is crashing. Check logs:
+```bash
+sudo docker logs whisper-stt --tail 50
+```
+
+Common causes:
+- Port mismatch between Dockerfile and docker-compose
+- Model failed to download (network issue)
+
+#### "Recording failed"
+
+```bash
+# Test microphone from inside container
+sudo docker exec whisper-stt arecord -D plughw:3,0 -f S16_LE -r 16000 -d 3 /tmp/test.wav
+sudo docker exec whisper-stt aplay -D plughw:2,0 /tmp/test.wav
+```
+
+If this fails, check:
+1. Microphone card number: `arecord -l`
+2. Update `AUDIO_DEVICE_MIC` in `.env`
+
+#### GPU Warning (Safe to Ignore)
+
+```
+GPU device discovery failed: device_discovery.cc:89
+```
+
+This is normal - Whisper is trying to find a GPU but falls back to CPU. Performance is still good.
+
+#### Slow Transcription
+
+If transcription takes > 5 seconds:
+1. Ensure you're using `tiny` model
+2. Check CPU usage: `htop`
+3. Try reducing audio duration
+
+### ✅ Success Criteria
+
+| Test | Expected Result |
+|------|-----------------|
+| `curl http://localhost:5002/health` | `"status": "healthy"` |
+| `curl -X POST .../listen -d '{"duration":5}'` | Your spoken words transcribed |
+| Container status | `Up (healthy)` |
+| Transcription latency | < 3 seconds for 5s audio |
 
 ---
 

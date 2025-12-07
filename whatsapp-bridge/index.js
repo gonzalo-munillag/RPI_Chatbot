@@ -418,9 +418,11 @@ MY QUESTION (this is what you should answer): ${userQuestion}`;
         // If TTS was triggered, speak the response through the speaker
         if (shouldSpeak) {
             try {
-                // Remove emojis from text before sending to TTS
-                // Emojis don't sound good when read aloud
+                // Remove emojis, asterisks, and formatting symbols from text before sending to TTS
+                // These don't sound good when read aloud
                 const textForSpeech = aiResponse
+                    .replace(/\*+/g, '')                      // Remove asterisks (bold/emphasis)
+                    .replace(/[_~`#]+/g, '')                  // Remove other formatting symbols
                     .replace(/[\u{1F600}-\u{1F64F}]/gu, '')  // Emoticons
                     .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')  // Misc symbols & pictographs
                     .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')  // Transport & map symbols

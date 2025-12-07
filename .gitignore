@@ -32,6 +32,10 @@ Thumbs.db
 piper-tts/voices/*.onnx
 piper-tts/voices/*.onnx.json
 
+# Whisper STT models (large files, downloaded on first run)
+whisper-stt/models/*
+!whisper-stt/models/.gitkeep
+
 # Environment variables (contains sensitive data)
 .env
 

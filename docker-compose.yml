@@ -69,10 +69,65 @@ services:
     networks:
       - chatbot-network
 
+  # Service 4: Whisper STT (Speech-to-Text)
+  # Converts spoken audio to text
+  whisper-stt:
+    image: ${DOCKER_USERNAME}/whisper-stt:latest
+    container_name: whisper-stt
+    ports:
+      - "127.0.0.1:5002:5000"   # STT API (localhost only)
+    devices:
+      - /dev/snd:/dev/snd       # Access to audio devices (microphone)
+    volumes:
+      - whisper-models:/app/models  # Persist downloaded Whisper models
+    restart: unless-stopped
+    environment:
+      - WHISPER_MODEL=${WHISPER_MODEL:-tiny}  # Model size: tiny, base, small
+      - COMPUTE_TYPE=int8                      # Fastest on CPU
+      - AUDIO_DEVICE=${AUDIO_DEVICE_MIC:-plughw:3,0}  # Microphone device
+      - SAMPLE_RATE=16000                      # 16kHz optimal for Whisper
+    group_add:
+      - audio                   # Add to audio group for microphone access
+    networks:
+      - chatbot-network
+
+  # Service 5: Wake Word Detection (openWakeWord)
+  # Hands-free voice activation - say "Hey Jarvis" to activate
+  wakeword:
+    image: ${DOCKER_USERNAME}/wakeword:latest
+    container_name: wakeword
+    ports:
+      - "127.0.0.1:5003:5000"   # Wake word API (localhost only)
+    devices:
+      - /dev/snd:/dev/snd       # Access to audio devices (microphone + speaker)
+    volumes:
+      - wakeword-models:/app/models  # Persist downloaded wake word models
+    restart: unless-stopped
+    environment:
+      - WAKE_WORD_MODEL=${WAKE_WORD_MODEL:-hey_jarvis}  # Wake word to listen for
+      - DETECTION_THRESHOLD=0.5                          # Detection sensitivity
+      - STT_URL=http://whisper-stt:5000                  # Connect to Whisper STT
+      - AI_URL=http://ollama:8000                        # Connect to Ollama AI
+      - TTS_URL=http://piper-tts:5000                    # Connect to Piper TTS
+      - AUDIO_DEVICE=${AUDIO_DEVICE_MIC:-plughw:3,0}    # Microphone device
+      - AUTO_START=${WAKEWORD_AUTO_START:-false}        # Auto-start listening on boot
+    depends_on:
+      - ollama
+      - whisper-stt
+      - piper-tts
+    group_add:
+      - audio                   # Add to audio group for microphone access
+    networks:
+      - chatbot-network
+
 volumes:
   ollama-data:
     driver: local
   whatsapp-data:
+    driver: local
+  whisper-models:
+    driver: local
+  wakeword-models:
     driver: local
 
 networks:

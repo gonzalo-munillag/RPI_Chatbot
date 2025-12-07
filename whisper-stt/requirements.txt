@@ -1,0 +1,27 @@
+# =============================================================================
+# Whisper STT Server Dependencies
+# =============================================================================
+# These are the Python packages required to run the STT server.
+# Install with: pip install -r requirements.txt
+# =============================================================================
+
+# FastAPI - Modern web framework for building APIs
+# Used to create HTTP endpoints for STT
+fastapi==0.104.1
+
+# Uvicorn - ASGI server to run FastAPI
+# Used to serve the HTTP API
+uvicorn==0.24.0
+
+# Pydantic - Data validation (comes with FastAPI, but pinning version)
+# Used for request/response models
+pydantic==2.5.0
+
+# faster-whisper - Optimized Whisper implementation
+# Uses CTranslate2 for much faster inference on CPU
+# This is 4x faster than original OpenAI Whisper
+faster-whisper>=1.1.0
+
+# Python-multipart - Required for file uploads
+python-multipart==0.0.6
+
