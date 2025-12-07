@@ -1,13 +1,13 @@
 version: '3.8'
 
 # Docker Compose for Raspberry Pi
-# Multi-container setup: Ollama+FastAPI + WhatsApp Bridge (separate)
+# Multi-container setup: Ollama+FastAPI + WhatsApp Bridge + Piper TTS
 # Place this file in /var/www/ollama_chatbot/
 
 services:
   # Service 1: AI Backend (Ollama + FastAPI)
   ollama:
-    image: gonzalomg0/ollama-gemma:latest
+    image: ${DOCKER_USERNAME}/ollama-gemma:latest
     container_name: ollama-gemma
     ports:
       - "8000:8000"              # FastAPI
@@ -30,7 +30,7 @@ services:
 
   # Service 2: WhatsApp Bridge (Node.js + Chromium)
   whatsapp:
-    image: gonzalomg0/whatsapp-bridge:latest
+    image: ${DOCKER_USERNAME}/whatsapp-bridge:latest
     container_name: whatsapp-bridge
     ports:
       - "127.0.0.1:3000:3000"   # WhatsApp QR (localhost only!)
@@ -41,8 +41,31 @@ services:
       - OLLAMA_API_URL=http://ollama:8000  # Connect to ollama service
       - AUTHORIZED_NUMBER=${AUTHORIZED_NUMBER}  # Your WhatsApp phone number (from .env file)
       - AUTHORIZED_LID=${AUTHORIZED_LID}  # Your WhatsApp internal ID for groups (from .env file)
+      - TTS_API_URL=http://piper-tts:5000  # Connect to TTS service for voice output
     depends_on:
       - ollama
+      - piper-tts
+    networks:
+      - chatbot-network
+
+  # Service 3: Piper TTS (Text-to-Speech)
+  # Converts AI responses to speech and plays through speaker
+  piper-tts:
+    image: ${DOCKER_USERNAME}/piper-tts:latest
+    container_name: piper-tts
+    ports:
+      - "127.0.0.1:5000:5000"   # TTS API (localhost only)
+    devices:
+      - /dev/snd:/dev/snd       # Access to audio devices (speaker)
+    # Note: Voice models are built into the image (see piper-tts/Dockerfile)
+    # No volume mount needed - voices are downloaded during docker build
+    restart: unless-stopped
+    environment:
+      - VOICE_MODEL=${VOICE_MODEL:-/app/voices/en_GB-alba-medium.onnx}  # Voice model (from .env)
+      - SAMPLE_RATE=22050       # Audio sample rate
+      - AUDIO_DEVICE=${AUDIO_DEVICE:-plughw:2,0}  # ALSA audio device for playback
+    group_add:
+      - audio                   # Add to audio group for speaker access
     networks:
       - chatbot-network
 

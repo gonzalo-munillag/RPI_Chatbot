@@ -5,7 +5,15 @@ const axios = require('axios');
 
 // Configuration
 const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://ollama:8000';
+const TTS_API_URL = process.env.TTS_API_URL || 'http://piper-tts:5000';
 const PORT = process.env.PORT || 3000;
+
+// TTS (Text-to-Speech) trigger keyword
+// When message starts with "speak" (after "Prometheus" in groups), AI response is also spoken
+// Examples:
+//   Group: "Prometheus speak what time is it?" → AI responds via text AND speaker
+//   Private: "speak hello" → AI responds via text AND speaker
+const TTS_TRIGGER = 'speak';
 
 // Initialize Express for health check and QR display
 const app = express();
@@ -168,8 +176,17 @@ client.on('message', async (message) => {
     
     // CONTEXT STORAGE: Store messages for context (both groups and private chats)
     const chatId = message.from; // Chat ID (group or private)
-    const contact = await message.getContact();
-    const senderName = contact.pushname || contact.name || senderNumber;
+    
+    // Get sender name (with fallback if getContact() fails due to WhatsApp Web updates)
+    let senderName = senderNumber;
+    try {
+        const contact = await message.getContact();
+        senderName = contact.pushname || contact.name || senderNumber;
+    } catch (contactError) {
+        // getContact() can fail when WhatsApp Web updates break whatsapp-web.js
+        console.log(`⚠️ Could not get contact info: ${contactError.message}`);
+        senderName = chat.name || senderNumber; // Fallback to chat name or number
+    }
     
     // Determine if we should store context
     const shouldStoreContext = chat.isGroup || (!chat.isGroup && (senderNumber === AUTHORIZED_NUMBER || senderNumber === AUTHORIZED_LID));
@@ -291,8 +308,24 @@ client.on('message', async (message) => {
         console.log(`✂️ Truncated user question (${message.body.length} chars -> ${MAX_MESSAGE_LENGTH})`);
     }
     
+    // Check for TTS trigger ("speak" keyword)
+    // If message starts with "speak", we'll also send the AI response to the speaker
+    let shouldSpeak = false;
+    if (userQuestion.toLowerCase().startsWith(TTS_TRIGGER)) {
+        shouldSpeak = true;
+        // Remove "speak" from the message
+        userQuestion = userQuestion.substring(TTS_TRIGGER.length).trim();
+        console.log(`🔊 TTS trigger detected - AI response will be spoken`);
+        
+        // If nothing left after removing "speak", use a default greeting
+        if (!userQuestion) {
+            userQuestion = 'say hello';
+        }
+    }
+    
     // Log the message
     console.log(`\n📨 Authorized User: ${userQuestion.substring(0, 100)}...`);
+    console.log(`   🔊 Speak mode: ${shouldSpeak ? 'ON' : 'OFF'}`);
     
     try {
         // Show typing indicator
@@ -381,6 +414,48 @@ MY QUESTION (this is what you should answer): ${userQuestion}`;
         
         // Send reply
         await message.reply(aiResponse);
+        
+        // If TTS was triggered, speak the response through the speaker
+        if (shouldSpeak) {
+            try {
+                // Remove emojis from text before sending to TTS
+                // Emojis don't sound good when read aloud
+                const textForSpeech = aiResponse
+                    .replace(/[\u{1F600}-\u{1F64F}]/gu, '')  // Emoticons
+                    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')  // Misc symbols & pictographs
+                    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')  // Transport & map symbols
+                    .replace(/[\u{1F700}-\u{1F77F}]/gu, '')  // Alchemical symbols
+                    .replace(/[\u{1F780}-\u{1F7FF}]/gu, '')  // Geometric shapes extended
+                    .replace(/[\u{1F800}-\u{1F8FF}]/gu, '')  // Supplemental arrows-C
+                    .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')  // Supplemental symbols & pictographs
+                    .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '')  // Chess symbols
+                    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')  // Symbols & pictographs extended-A
+                    .replace(/[\u{2600}-\u{26FF}]/gu, '')    // Misc symbols
+                    .replace(/[\u{2700}-\u{27BF}]/gu, '')    // Dingbats
+                    .replace(/\s+/g, ' ')                     // Collapse multiple spaces
+                    .trim();
+                
+                console.log(`🔊 Sending to TTS service: ${TTS_API_URL}/speak`);
+                console.log(`🔊 Text (emojis removed): ${textForSpeech.substring(0, 100)}...`);
+                
+                const ttsResponse = await axios.post(`${TTS_API_URL}/speak`, {
+                    text: textForSpeech,
+                    play_audio: true
+                }, {
+                    timeout: 60000 // 1 minute timeout for TTS
+                });
+                
+                if (ttsResponse.data.success) {
+                    console.log(`🔊 TTS completed in ${ttsResponse.data.duration_ms?.toFixed(0)}ms`);
+                } else {
+                    console.log(`⚠️ TTS service returned failure`);
+                }
+            } catch (ttsError) {
+                console.error(`❌ TTS Error: ${ttsError.message}`);
+                // Don't fail the whole message, just log the TTS error
+                // The text response was already sent successfully
+            }
+        }
         
         // STORE AI RESPONSE IN CONTEXT (for both groups and private chats)
         // Re-fetch context in case it was created during processing

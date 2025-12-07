@@ -28,6 +28,10 @@ Thumbs.db
 # Ollama models (if testing locally)
 .ollama/
 
+# Piper TTS voice models (large files, downloaded during Docker build)
+piper-tts/voices/*.onnx
+piper-tts/voices/*.onnx.json
+
 # Environment variables (contains sensitive data)
 .env
 

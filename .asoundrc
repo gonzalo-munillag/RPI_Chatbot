@@ -1,0 +1,161 @@
+# =============================================================================
+# ALSA Configuration for Raspberry Pi with USB Audio Devices
+# =============================================================================
+#
+# WHAT IS THIS FILE?
+# ------------------
+# This is an ALSA (Advanced Linux Sound Architecture) configuration file.
+# It tells Linux which audio devices to use by default for playback and recording.
+#
+# WHY THE DOT (.) IN THE FILENAME?
+# --------------------------------
+# In Linux/Unix systems, files starting with a dot (.) are "hidden files".
+# - They don't show up in normal `ls` listings (use `ls -a` to see them)
+# - They're typically used for configuration files
+# - The dot is a convention, not enforced by the system
+# - Examples: .bashrc, .gitignore, .env, .asoundrc
+#
+# WHERE DOES THIS FILE GO?
+# ------------------------
+# This file should be placed in your home directory as: ~/.asoundrc
+# The ~ (tilde) is a shortcut for your home directory (/home/username)
+# Full path example: /home/username/.asoundrc
+#
+# HOW ALSA FINDS THIS FILE:
+# -------------------------
+# ALSA checks configuration files in this order:
+#   1. /usr/share/alsa/alsa.conf    (system defaults - don't modify)
+#   2. /etc/asound.conf             (system-wide overrides - optional)
+#   3. ~/.asoundrc                  (user overrides - THIS FILE)
+#
+# YOUR HARDWARE (update if different):
+# ------------------------------------
+#   - USB Speaker:    Card 2 (UACDemoV1.0 by Jieli Technology)
+#   - USB Microphone: Card 3 (USB PnP Sound Device by C-Media)
+#
+# To find your card numbers, run:
+#   aplay -l    (shows playback devices / speakers)
+#   arecord -l  (shows recording devices / microphones)
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# DEFAULT AUDIO DEVICE
+# -----------------------------------------------------------------------------
+# pcm.!default defines what device ALSA uses when no device is specified.
+# The "!" means "override" - it replaces any previous default definition.
+#
+# type = asym (asymmetric) allows us to use DIFFERENT devices for:
+#   - playback (speakers)
+#   - capture (microphones)
+#
+# Without "asym", playback and capture would need to be the same device,
+# which doesn't work when you have separate USB speaker and microphone.
+
+pcm.!default {
+    type asym
+    playback.pcm "playback_device"
+    capture.pcm "capture_device"
+}
+
+# -----------------------------------------------------------------------------
+# PLAYBACK DEVICE (Speaker)
+# -----------------------------------------------------------------------------
+# This defines the "playback_device" referenced above.
+#
+# type = plug enables automatic conversion of:
+#   - Sample format (e.g., 8-bit to 16-bit)
+#   - Sample rate (e.g., 16kHz to 44.1kHz)
+#   - Channels (e.g., mono to stereo)
+#
+# slave.pcm = the actual hardware device
+#   "hw:2,0" means Card 2, Device 0 (your USB speaker)
+#
+# Why "plug" instead of direct "hw"?
+#   Without plug: App must output EXACT format the hardware expects
+#   With plug: ALSA automatically converts formats as needed
+
+pcm.playback_device {
+    type plug
+    slave.pcm "hw:2,0"
+}
+
+# -----------------------------------------------------------------------------
+# CAPTURE DEVICE (Microphone)
+# -----------------------------------------------------------------------------
+# Same concept as playback, but for recording.
+#   "hw:3,0" means Card 3, Device 0 (your USB microphone)
+
+pcm.capture_device {
+    type plug
+    slave.pcm "hw:3,0"
+}
+
+# -----------------------------------------------------------------------------
+# MIXER CONTROL (Volume)
+# -----------------------------------------------------------------------------
+# ctl.!default defines the default mixer (volume control) device.
+# This is used by tools like alsamixer, amixer, etc.
+#
+# type = hw means direct hardware access
+# card = the card number to control
+
+ctl.!default {
+    type hw
+    card 2
+}
+
+# -----------------------------------------------------------------------------
+# NAMED DEVICES (Optional but Convenient)
+# -----------------------------------------------------------------------------
+# These create "aliases" you can use explicitly in commands:
+#   aplay -D usb_speaker file.wav
+#   arecord -D usb_mic recording.wav
+#
+# Useful when you want to be explicit about which device to use,
+# or when writing scripts that should always use specific devices.
+
+pcm.usb_speaker {
+    type plug
+    slave.pcm "hw:2,0"
+}
+
+pcm.usb_mic {
+    type plug
+    slave.pcm "hw:3,0"
+}
+
+# Mixer controls for the named devices
+ctl.usb_speaker {
+    type hw
+    card 2
+}
+
+ctl.usb_mic {
+    type hw
+    card 3
+}
+
+# =============================================================================
+# TROUBLESHOOTING
+# =============================================================================
+#
+# Problem: "No such device" errors
+# Solution: Your card numbers might be different. Run aplay -l and arecord -l
+#           to find your actual card numbers, then update the "hw:X,0" values.
+#
+# Problem: Card numbers change after reboot
+# Solution: Use card NAMES instead of numbers:
+#           slave.pcm "hw:UACDemoV10,0"   (instead of "hw:2,0")
+#           slave.pcm "hw:Device,0"        (instead of "hw:3,0")
+#           Find names in: cat /proc/asound/cards
+#
+# Problem: "Channels count non available" or format errors
+# Solution: Make sure you're using "type plug" (not "type hw") for automatic
+#           format conversion.
+#
+# Problem: Changes don't take effect
+# Solution: ALSA reads this file on each application start. Close and reopen
+#           any audio applications. No system restart needed.
+#
+# =============================================================================

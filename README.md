@@ -84,19 +84,20 @@ You → WhatsApp → WhatsApp Bridge (Port 3000) → FastAPI (Port 8000) → Oll
    cd RPI_Chatbot
    ```
 
-2. **Edit files with your Docker Hub username**
+2. **Configure your Docker Hub username**
    
-   Edit build script:
+   Create a `.env` file with your Docker Hub username:
    ```bash
-   nano build-and-push.sh
+   cp .env.example .env
+   nano .env
    ```
-   Replace `gonzalomg0` with YOUR Docker Hub username.
    
-   Edit docker-compose:
-   ```bash
-   nano docker-compose.yml
+   Add this line (replace with YOUR Docker Hub username):
    ```
-   Replace `gonzalomg0` with YOUR Docker Hub username.
+   DOCKER_USERNAME=your_dockerhub_username
+   ```
+   
+   Save and exit (Ctrl+X, then Y, then Enter).
 
 3. **Build and push to Docker Hub**
    ```bash
@@ -646,6 +647,9 @@ Your phone numbers are stored securely in a `.env` file that's excluded from Git
    
    The `.env` file contains:
    ```bash
+   # Docker Hub Configuration (required for building)
+   DOCKER_USERNAME=your_dockerhub_username
+   
    # Required - WhatsApp Authorization
    AUTHORIZED_NUMBER=YOUR_NUMBER_HERE@c.us
    AUTHORIZED_LID=YOUR_LID_HERE@lid
@@ -656,6 +660,7 @@ Your phone numbers are stored securely in a `.env` file that's excluded from Git
    ```
    
    Replace:
+   - `your_dockerhub_username` with YOUR Docker Hub username (e.g., `johndoe`)
    - `YOUR_NUMBER_HERE@c.us` with your phone number (e.g., `49598658532@c.us`)
    - `YOUR_LID_HERE@lid` - Leave as placeholder for now (you'll find this after first group message)
    - `MODEL_NAME` and `SYSTEM_PROMPT` - Optional, use defaults or customize (see [CUSTOMIZATION_GUIDE.md](CUSTOMIZATION_GUIDE.md))

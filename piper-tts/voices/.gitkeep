@@ -1,0 +1,6 @@
+# This file keeps the voices/ directory in git.
+# Voice models (.onnx files) are downloaded during Docker build.
+# They are ~60MB each and should NOT be committed to git.
+#
+# To download voices manually, see download_voice.sh
+
