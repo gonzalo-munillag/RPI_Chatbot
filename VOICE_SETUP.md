@@ -4,7 +4,7 @@ This guide walks you through adding **voice capabilities** to your Raspberry Pi 
 
 1. **Text-to-Speech (TTS)**: Prometheus speaks its responses through a speaker
 2. **Speech-to-Text (STT)**: You speak to Prometheus through a microphone  
-3. **Wake Word Detection**: Say "Prometheus" to activate voice interaction
+3. **Wake Word Detection**: Say "Hey Jarvis" to activate voice interaction
 
 ---
 
@@ -82,7 +82,7 @@ These are the exact devices used in this project:
                                          └────────────┘
                                                
 ┌────────────────┐     ┌──────────────────┐     ┌─────────┐
-│ 🎤 "Prometheus"│ ───▶│  openWakeWord     │───▶│ Whisper │
+│ 🎤 "Hey Jarvis"│ ───▶│  openWakeWord     │───▶│ Whisper │
 │  (Wake Word)   │     │  (Detection)     │     │  (STT)  │
 └────────────────┘     └──────────────────┘     └─────────┘
                                                 │
@@ -96,7 +96,7 @@ These are the exact devices used in this project:
 
 | Component | Purpose | Technology |
 |-----------|---------|------------|
-| **Wake Word Detection** | Listen for "Prometheus" trigger | [openWakeWord](https://github.com/dscripka/openWakeWord) |
+| **Wake Word Detection** | Listen for "Hey Jarvis" trigger | [openWakeWord](https://github.com/dscripka/openWakeWord) |
 | **Speech-to-Text (STT)** | Convert your voice to text | [Whisper](https://github.com/openai/whisper) (tiny/base model) |
 | **LLM Processing** | Generate intelligent responses | Gemma-2-2b via Ollama |
 | **Text-to-Speech (TTS)** | Convert text responses to speech | [Piper](https://github.com/rhasspy/piper) |
@@ -1493,13 +1493,156 @@ If transcription takes > 5 seconds:
 
 ## 🎯 Step 7: Install openWakeWord
 
-*Coming in next step...*
+### What is openWakeWord?
+
+**openWakeWord** is an open-source wake word detection library that listens for specific phrases to activate your assistant. It's lightweight and runs efficiently on a Raspberry Pi.
+
+### Available Wake Words
+
+openWakeWord comes with several pre-trained wake words:
+- **hey_jarvis** ← We use this one
+- alexa
+- hey_mycroft
+- ok_nabu
+
+### Why "Hey Jarvis" instead of custom?
+
+Training a **custom wake word** (like "Hey Prometheus") requires Google Colab, and I simply, I do not want to use a Google Colab; I want to do things on my machine. For some reason, the code to train was not available in the OpenWakeWord repo so I could not use it, and attempts to replace it failed too often. Leaving me with the pre-trained wake words.
+
+If you want a custom wake word, see the official training notebook:
+https://colab.research.google.com/github/dscripka/openWakeWord/blob/main/notebooks/training/train_custom_model.ipynb
+
+### The wakeword Service
+
+The `wakeword` Docker service orchestrates the full voice pipeline:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    wakeword Container                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  🎤 Microphone ──▶ openWakeWord ──▶ "Hey Jarvis" detected!       │
+│                          │                                      │
+│                          ▼                                      │
+│                   Record 5 seconds                              │
+│                          │                                      │
+│                          ▼                                      │
+│              Whisper STT (transcribe)                           │
+│                          │                                      │
+│                          ▼                                      │
+│              Ollama AI (generate response)                      │
+│                          │                                      │
+│                          ▼                                      │
+│              Piper TTS (speak response) ──▶ 🔊 Speaker          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Configuration
+
+In your `.env` file:
+
+```bash
+# Wake word settings
+WAKE_WORD_MODEL=hey_jarvis     # Pre-trained wake word
+WAKE_WORD_THRESHOLD=0.5        # Detection sensitivity (0.0-1.0)
+AUDIO_DEVICE_MIC=plughw:3,0    # Microphone device
+```
+
+### Starting the Wake Word Service
+
+```bash
+# Start the service
+docker-compose up -d wakeword
+
+# Activate listening
+curl -X POST http://localhost:5003/start
+
+# Check status
+curl http://localhost:5003/status
+
+# View logs
+docker logs wakeword -f
+```
+
+### Testing
+
+1. Say **"Hey Jarvis"** clearly
+2. Wait for the beep/log message indicating detection
+3. Speak your command (you have 5 seconds)
+4. Listen for Prometheus's spoken response
 
 ---
 
 ## 🔗 Step 8: Voice Pipeline Integration
 
-*Coming in next step...*
+### Full Voice Pipeline
+
+With all components installed, here's how they work together:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         VOICE PIPELINE                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  You: "Hey Jarvis"                                                      │
+│        │                                                                │
+│        ▼                                                                │
+│  ┌─────────────┐                                                        │
+│  │ openWakeWord │ ──▶ Wake word detected!                               │
+│  └─────────────┘                                                        │
+│        │                                                                │
+│        ▼                                                                │
+│  You: "What's the weather like?"                                        │
+│        │                                                                │
+│        ▼                                                                │
+│  ┌─────────────┐                                                        │
+│  │ Whisper STT │ ──▶ "What's the weather like?"                         │
+│  └─────────────┘                                                        │
+│        │                                                                │
+│        ▼                                                                │
+│  ┌─────────────┐                                                        │
+│  │   Ollama    │ ──▶ "I don't have access to real-time weather..."      │
+│  └─────────────┘                                                        │
+│        │                                                                │
+│        ▼                                                                │
+│  ┌─────────────┐                                                        │
+│  │  Piper TTS  │ ──▶ 🔊 Speaks the response                            │
+│  └─────────────┘                                                        │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Starting All Voice Services
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Verify all are running
+docker ps
+
+# Start wake word listening
+curl -X POST http://localhost:5003/start
+```
+
+### Service Endpoints
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Piper TTS | 5000 | Text-to-Speech |
+| Whisper STT | 5002 | Speech-to-Text |
+| Wake Word | 5003 | Wake word detection + pipeline |
+| Ollama | 8000 | AI responses |
+
+### Two Ways to Interact
+
+1. **Voice (via wake word)**:
+   - Say "Hey Jarvis" → speak your question → hear the response
+
+2. **Text (via WhatsApp/Web Portal)**:
+   - Send message with "speak" keyword → read + hear the response
+   - Send message without "speak" → read only
 
 ---
 

@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<!--
+=============================================================================
+Prometheus Chat Interface
+=============================================================================
+
+This is the main chat UI for your AI assistant. It's designed to look and
+feel like ChatGPT - clean, modern, and easy to use.
+
+STRUCTURE:
+- HTML: Defines the structure (header, chat area, input box)
+- CSS: Defines the appearance (colors, fonts, layout)  
+- JavaScript: Defines the behavior (sending messages, receiving responses)
+
+=============================================================================
+-->
+<html lang="en">
+<head>
+    <!-- Character encoding - UTF-8 supports all languages and emojis -->
+    <meta charset="UTF-8">
+    
+    <!-- Viewport settings for mobile responsiveness -->
+    <!-- width=device-width: Page width matches device screen width -->
+    <!-- initial-scale=1.0: No initial zoom -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Page title shown in browser tab -->
+    <title>Prometheus - AI Assistant</title>
+    
+    <!-- ================================================================== -->
+    <!-- CSS STYLES                                                         -->
+    <!-- ================================================================== -->
+    <style>
+        /* ----------------------------------------------------------------
+           CSS RESET AND BASE STYLES
+           ----------------------------------------------------------------
+           These styles establish a consistent baseline across browsers
+           and set up the dark theme similar to ChatGPT.
+        */
+        
+        /* Universal selector (*) applies to ALL elements */
+        * {
+            margin: 0;           /* Remove default margins */
+            padding: 0;          /* Remove default padding */
+            box-sizing: border-box; /* Include padding/border in width */
+        }
+        
+        /* Root element for CSS variables (custom properties) */
+        /* Variables make it easy to change colors throughout the page */
+        :root {
+            --bg-primary: #212121;      /* Main background color */
+            --bg-secondary: #2f2f2f;    /* Secondary background (messages) */
+            --bg-input: #3a3a3a;        /* Input field background */
+            --text-primary: #ececec;    /* Main text color */
+            --text-secondary: #8e8e8e;  /* Muted text color */
+            --accent: #10a37f;          /* Accent color (green, like ChatGPT) */
+            --accent-hover: #0e906f;    /* Darker accent for hover states */
+            --border: #4a4a4a;          /* Border color */
+            --user-msg-bg: #2f2f2f;     /* User message background */
+            --ai-msg-bg: #1e1e1e;       /* AI message background */
+            --danger: #ff4444;          /* Error/danger color */
+        }
+        
+        /* HTML and Body - full height, dark background */
+        html, body {
+            height: 100%;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            /* Font stack: try each font in order until one is available */
+            font-family: 'Söhne', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        
+        /* ----------------------------------------------------------------
+           LAYOUT STRUCTURE
+           ----------------------------------------------------------------
+           The page is divided into three sections:
+           1. Header (top) - Logo and logout button
+           2. Chat area (middle) - Scrollable message history
+           3. Input area (bottom) - Fixed message input
+        */
+        
+        /* Main container - flexbox column layout */
+        .container {
+            display: flex;
+            flex-direction: column;  /* Stack children vertically */
+            height: 100%;
+            max-width: 900px;        /* Limit width on large screens */
+            margin: 0 auto;          /* Center horizontally */
+        }
+        
+        /* ----------------------------------------------------------------
+           HEADER
+           ----------------------------------------------------------------
+        */
+        .header {
+            display: flex;
+            justify-content: space-between;  /* Logo left, button right */
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;  /* Space between flame emoji and text */
+        }
+        
+        .logo h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        /* Logout button */
+        .logout-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;  /* Smooth hover effect */
+        }
+        
+        .logout-btn:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+        
+        /* ----------------------------------------------------------------
+           CHAT AREA
+           ----------------------------------------------------------------
+           The main scrollable area where messages appear.
+        */
+        .chat-area {
+            flex: 1;              /* Take up all available space */
+            overflow-y: auto;     /* Enable vertical scrolling */
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;            /* Space between messages */
+        }
+        
+        /* Individual message container */
+        .message {
+            display: flex;
+            gap: 16px;
+            max-width: 100%;
+            animation: fadeIn 0.3s ease;  /* Fade in animation */
+        }
+        
+        /* Keyframe animation for message fade-in */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Avatar circle for user and AI */
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;       /* Don't shrink avatar */
+        }
+        
+        /* User avatar - purple/magenta */
+        .avatar.user {
+            background: linear-gradient(135deg, #8e44ad, #9b59b6);
+        }
+        
+        /* AI avatar - green (like ChatGPT) */
+        .avatar.ai {
+            background: linear-gradient(135deg, #10a37f, #1abc9c);
+        }
+        
+        /* Message content area */
+        .message-content {
+            flex: 1;
+            padding: 4px 0;
+        }
+        
+        /* Sender name above message */
+        .message-content .sender {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        /* Actual message text */
+        .message-content .text {
+            line-height: 1.6;      /* Comfortable line spacing */
+            white-space: pre-wrap; /* Preserve line breaks */
+            word-break: break-word;/* Break long words */
+        }
+        
+        /* Spoken indicator (shows when TTS was used) */
+        .spoken-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: var(--accent);
+            margin-top: 8px;
+        }
+        
+        /* ----------------------------------------------------------------
+           WELCOME MESSAGE
+           ----------------------------------------------------------------
+           Shown when there are no messages yet.
+        */
+        .welcome {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            text-align: center;
+            padding: 24px;
+        }
+        
+        .welcome h2 {
+            font-size: 32px;
+            margin-bottom: 16px;
+        }
+        
+        .welcome p {
+            color: var(--text-secondary);
+            max-width: 400px;
+            line-height: 1.6;
+        }
+        
+        .tip {
+            margin-top: 24px;
+            padding: 16px 24px;
+            background-color: var(--bg-secondary);
+            border-radius: 12px;
+            font-size: 14px;
+        }
+        
+        .tip code {
+            background-color: var(--bg-input);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        /* ----------------------------------------------------------------
+           INPUT AREA
+           ----------------------------------------------------------------
+           Fixed at the bottom of the screen.
+        */
+        .input-area {
+            padding: 16px 24px 24px;
+            border-top: 1px solid var(--border);
+        }
+        
+        /* Input container - holds textarea and send button */
+        .input-container {
+            display: flex;
+            gap: 12px;
+            background-color: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            transition: border-color 0.2s;
+        }
+        
+        /* Highlight border when input is focused */
+        .input-container:focus-within {
+            border-color: var(--accent);
+        }
+        
+        /* Message input textarea */
+        #messageInput {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-family: inherit;
+            resize: none;          /* Disable resize handle */
+            outline: none;         /* Remove focus outline */
+            min-height: 24px;
+            max-height: 200px;     /* Limit expansion */
+        }
+        
+        /* Placeholder text styling */
+        #messageInput::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        /* Send button */
+        #sendBtn {
+            background-color: var(--accent);
+            border: none;
+            border-radius: 8px;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+        }
+        
+        #sendBtn:hover:not(:disabled) {
+            background-color: var(--accent-hover);
+        }
+        
+        #sendBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Send button arrow icon (using CSS) */
+        #sendBtn::after {
+            content: "↑";
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        /* Helper text below input */
+        .input-help {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 12px;
+        }
+        
+        /* ----------------------------------------------------------------
+           LOADING INDICATOR
+           ----------------------------------------------------------------
+           Shows animated dots while waiting for AI response.
+        */
+        .loading {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+        
+        .loading span {
+            width: 8px;
+            height: 8px;
+            background-color: var(--text-secondary);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        
+        /* Stagger the animation for each dot */
+        .loading span:nth-child(1) { animation-delay: 0s; }
+        .loading span:nth-child(2) { animation-delay: 0.2s; }
+        .loading span:nth-child(3) { animation-delay: 0.4s; }
+        
+        /* Bounce animation */
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.6; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        /* ----------------------------------------------------------------
+           ERROR MESSAGE
+           ----------------------------------------------------------------
+        */
+        .error-message {
+            background-color: rgba(255, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+        
+        /* ----------------------------------------------------------------
+           RESPONSIVE DESIGN
+           ----------------------------------------------------------------
+           Adjust layout for smaller screens (mobile phones).
+        */
+        @media (max-width: 600px) {
+            .header {
+                padding: 12px 16px;
+            }
+            
+            .chat-area {
+                padding: 16px;
+            }
+            
+            .input-area {
+                padding: 12px 16px 16px;
+            }
+            
+            .welcome h2 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ================================================================== -->
+    <!-- HTML STRUCTURE                                                     -->
+    <!-- ================================================================== -->
+    
+    <div class="container">
+        <!-- Header with logo and logout button -->
+        <header class="header">
+            <div class="logo">
+                <span style="font-size: 24px;">🔥</span>
+                <h1>Prometheus</h1>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </header>
+        
+        <!-- Chat area where messages appear -->
+        <!-- ID is used by JavaScript to add messages dynamically -->
+        <div class="chat-area" id="chatArea">
+            <!-- Welcome message - shown when no messages yet -->
+            <div class="welcome" id="welcome">
+                <h2>🔥 Hello!</h2>
+                <p>I'm Prometheus, your AI assistant running locally on your Raspberry Pi.</p>
+                <div class="tip">
+                    💡 Tip: Start your message with <code>speak</code> to hear my response through the speaker.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Input area at the bottom -->
+        <div class="input-area">
+            <div class="input-container">
+                <!-- Textarea for message input -->
+                <!-- rows="1": Start with one row height -->
+                <!-- oninput: Auto-resize as user types -->
+                <textarea 
+                    id="messageInput" 
+                    placeholder="Message Prometheus..." 
+                    rows="1"
+                    oninput="autoResize(this)"
+                    onkeydown="handleKeyDown(event)"
+                ></textarea>
+                <!-- Send button -->
+                <button id="sendBtn" onclick="sendMessage()"></button>
+            </div>
+            <p class="input-help">Press Enter to send, Shift+Enter for new line</p>
+        </div>
+    </div>
+    
+    <!-- ================================================================== -->
+    <!-- JAVASCRIPT                                                         -->
+    <!-- ================================================================== -->
+    <script>
+        // ================================================================
+        // JAVASCRIPT FOR CHAT FUNCTIONALITY
+        // ================================================================
+        //
+        // This script handles:
+        // 1. Sending messages to the server
+        // 2. Displaying messages in the chat
+        // 3. Auto-resizing the input textarea
+        // 4. Keyboard shortcuts (Enter to send)
+        // 5. Logout functionality
+        //
+        // ================================================================
+        
+        // ------------------------------------------------------------
+        // DOM ELEMENT REFERENCES
+        // ------------------------------------------------------------
+        // Get references to frequently used elements once at startup.
+        // This is more efficient than querying the DOM each time.
+        
+        // The scrollable area where messages appear
+        const chatArea = document.getElementById('chatArea');
+        
+        // The welcome message (hidden after first message)
+        const welcome = document.getElementById('welcome');
+        
+        // The text input field
+        const messageInput = document.getElementById('messageInput');
+        
+        // The send button
+        const sendBtn = document.getElementById('sendBtn');
+        
+        // ------------------------------------------------------------
+        // AUTO-RESIZE TEXTAREA
+        // ------------------------------------------------------------
+        /**
+         * Automatically adjusts the height of the textarea as the user types.
+         * This creates a smooth expanding input like ChatGPT.
+         * 
+         * @param {HTMLTextAreaElement} element - The textarea element
+         */
+        function autoResize(element) {
+            // Reset height to auto to get the correct scrollHeight
+            element.style.height = 'auto';
+            // Set height to match content (scrollHeight includes padding)
+            element.style.height = element.scrollHeight + 'px';
+        }
+        
+        // ------------------------------------------------------------
+        // KEYBOARD HANDLING
+        // ------------------------------------------------------------
+        /**
+         * Handles keyboard events in the input field.
+         * - Enter: Send message
+         * - Shift+Enter: Insert new line
+         * 
+         * @param {KeyboardEvent} event - The keyboard event
+         */
+        function handleKeyDown(event) {
+            // Check if Enter was pressed
+            if (event.key === 'Enter') {
+                // If Shift is NOT held, send the message
+                if (!event.shiftKey) {
+                    // Prevent default behavior (inserting newline)
+                    event.preventDefault();
+                    // Send the message
+                    sendMessage();
+                }
+                // If Shift IS held, do nothing (let browser insert newline)
+            }
+        }
+        
+        // ------------------------------------------------------------
+        // ADD MESSAGE TO CHAT
+        // ------------------------------------------------------------
+        /**
+         * Creates a message element and adds it to the chat area.
+         * 
+         * @param {string} text - The message text
+         * @param {string} sender - Either 'user' or 'ai'
+         * @param {boolean} spoken - Whether TTS was used (for AI messages)
+         * @returns {HTMLElement} The created message element
+         */
+        function addMessage(text, sender, spoken = false) {
+            // Hide welcome message after first message
+            if (welcome) {
+                welcome.style.display = 'none';
+            }
+            
+            // Create the message container div
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            
+            // Determine avatar emoji and sender name
+            const isUser = sender === 'user';
+            const avatarEmoji = isUser ? '👤' : '🔥';
+            const senderName = isUser ? 'You' : 'Prometheus';
+            
+            // Build the HTML structure for the message
+            // Using template literal (backticks) for multi-line string
+            messageDiv.innerHTML = `
+                <div class="avatar ${sender}">${avatarEmoji}</div>
+                <div class="message-content">
+                    <div class="sender">${senderName}</div>
+                    <div class="text">${escapeHtml(text)}</div>
+                    ${spoken ? '<div class="spoken-indicator">🔊 Spoken</div>' : ''}
+                </div>
+            `;
+            
+            // Add to chat area
+            chatArea.appendChild(messageDiv);
+            
+            // Scroll to bottom to show new message
+            scrollToBottom();
+            
+            return messageDiv;
+        }
+        
+        // ------------------------------------------------------------
+        // LOADING INDICATOR
+        // ------------------------------------------------------------
+        /**
+         * Shows a loading indicator (animated dots) while waiting for response.
+         * 
+         * @returns {HTMLElement} The loading element (so it can be removed later)
+         */
+        function showLoading() {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message';
+            loadingDiv.id = 'loadingIndicator';
+            
+            loadingDiv.innerHTML = `
+                <div class="avatar ai">🔥</div>
+                <div class="message-content">
+                    <div class="sender">Prometheus</div>
+                    <div class="loading">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            
+            chatArea.appendChild(loadingDiv);
+            scrollToBottom();
+            
+            return loadingDiv;
+        }
+        
+        /**
+         * Removes the loading indicator.
+         */
+        function hideLoading() {
+            const loading = document.getElementById('loadingIndicator');
+            if (loading) {
+                loading.remove();
+            }
+        }
+        
+        // ------------------------------------------------------------
+        // ERROR MESSAGE
+        // ------------------------------------------------------------
+        /**
+         * Displays an error message in the chat.
+         * 
+         * @param {string} message - The error message to display
+         */
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            chatArea.appendChild(errorDiv);
+            scrollToBottom();
+        }
+        
+        // ------------------------------------------------------------
+        // SCROLL TO BOTTOM
+        // ------------------------------------------------------------
+        /**
+         * Scrolls the chat area to the bottom to show the newest message.
+         */
+        function scrollToBottom() {
+            // requestAnimationFrame ensures scroll happens after DOM update
+            requestAnimationFrame(() => {
+                chatArea.scrollTop = chatArea.scrollHeight;
+            });
+        }
+        
+        // ------------------------------------------------------------
+        // ESCAPE HTML
+        // ------------------------------------------------------------
+        /**
+         * Escapes HTML special characters to prevent XSS attacks.
+         * Without this, a message containing "<script>" would be executed.
+         * 
+         * @param {string} text - The text to escape
+         * @returns {string} Safe text with HTML entities
+         */
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;  // textContent automatically escapes
+            return div.innerHTML;
+        }
+        
+        // ------------------------------------------------------------
+        // SEND MESSAGE
+        // ------------------------------------------------------------
+        /**
+         * Main function to send a message to the server.
+         * 
+         * Flow:
+         * 1. Get message from input
+         * 2. Display user message in chat
+         * 3. Show loading indicator
+         * 4. Send request to server
+         * 5. Hide loading and show AI response
+         */
+        async function sendMessage() {
+            // Get the message text and trim whitespace
+            const message = messageInput.value.trim();
+            
+            // Don't send empty messages
+            if (!message) return;
+            
+            // Clear the input field and reset its height
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            
+            // Disable the send button while processing
+            sendBtn.disabled = true;
+            
+            // Add user's message to the chat
+            addMessage(message, 'user');
+            
+            // Show loading indicator
+            showLoading();
+            
+            try {
+                // Send POST request to our server
+                // fetch() returns a Promise, so we use await
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    // Convert JavaScript object to JSON string
+                    body: JSON.stringify({ message: message })
+                });
+                
+                // Hide loading indicator
+                hideLoading();
+                
+                // Check if request was successful
+                if (!response.ok) {
+                    // Try to get error message from response
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Server error');
+                }
+                
+                // Parse the JSON response
+                const data = await response.json();
+                
+                // Add AI's response to the chat
+                // data.spoken tells us if TTS was used
+                addMessage(data.response, 'ai', data.spoken);
+                
+            } catch (error) {
+                // Hide loading indicator on error
+                hideLoading();
+                
+                // Show error message
+                showError(`Error: ${error.message}`);
+                console.error('Chat error:', error);
+            }
+            
+            // Re-enable the send button
+            sendBtn.disabled = false;
+            
+            // Focus back on the input field for convenience
+            messageInput.focus();
+        }
+        
+        // ------------------------------------------------------------
+        // LOGOUT
+        // ------------------------------------------------------------
+        /**
+         * Logs out the user and redirects to login page.
+         */
+        async function logout() {
+            try {
+                // Send logout request to server
+                await fetch('/logout', { method: 'POST' });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            
+            // Redirect to login page (server will show login form)
+            window.location.href = '/';
+        }
+        
+        // ------------------------------------------------------------
+        // INITIALIZATION
+        // ------------------------------------------------------------
+        // Focus the input field when the page loads
+        // This allows the user to start typing immediately
+        messageInput.focus();
+    </script>
+</body>
+</html>
+

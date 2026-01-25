@@ -30,6 +30,7 @@ A dockerized chatbot running Google's Gemma-2-2b model on Raspberry Pi 5, with F
 - [📊 Resource Usage](#-resource-usage)
 - [🔄 CI/CD Pipeline](#-cicd-pipeline)
 - [📚 Tech Stack](#-tech-stack)
+- [🎤 Voice Capabilities](#-voice-capabilities)
 - [💡 Tips](#-tips)
 
 ---
@@ -40,12 +41,18 @@ This project provides a complete setup for running a local AI chatbot on Raspber
 - **Ollama** - Runs the Gemma-2-2b LLM (or any other model you choose)
 - **FastAPI** - REST API wrapper for easy integration
 - **WhatsApp Integration** - Chat with your AI via WhatsApp (no public exposure needed!)
+- **Voice Capabilities** - Text-to-Speech, Speech-to-Text, and wake word detection
 - **Docker** - Containerizes components for easy deployment
 
 **🎨 Want to customize your AI?** Check out the **[CUSTOMIZATION_GUIDE.md](CUSTOMIZATION_GUIDE.md)** to learn how to:
 - Change the AI's personality (system prompt)
 - Switch to different models (LLaMA, Mistral, Phi, etc.)
 - Understand why we use `/var/www` and better alternatives
+
+**🎤 Want voice interaction?** Check out the **[VOICE_SETUP.md](VOICE_SETUP.md)** to add:
+- Text-to-Speech (Piper TTS) - Your AI speaks responses aloud
+- Speech-to-Text (Whisper) - Talk to your AI with your voice
+- Wake word detection (openWakeWord) - Say "Hey Jarvis" to activate
 
 ## 🏗️ Architecture
 
@@ -919,6 +926,24 @@ docker ps | grep watchtower
 - **Docker** - Containerization
 - **Docker Buildx** - Multi-architecture builds
 - **Cloudflare Tunnel** - Secure external access
+
+---
+
+## 🎤 Voice Capabilities
+
+This project includes optional voice interaction features:
+
+| Component | Purpose | Documentation |
+|-----------|---------|---------------|
+| **Piper TTS** | Text-to-Speech - AI speaks responses | [VOICE_SETUP.md](VOICE_SETUP.md) |
+| **Whisper STT** | Speech-to-Text - Transcribe your voice | [VOICE_SETUP.md](VOICE_SETUP.md) |
+| **openWakeWord** | Wake word detection - "Hey Jarvis" activation | [VOICE_SETUP.md](VOICE_SETUP.md) |
+
+### Quick Voice Features:
+- **Text trigger**: Add "speak" to any message and the AI will read its response aloud
+- **Voice trigger**: Say "Hey Jarvis" followed by your question for hands-free interaction
+
+See **[VOICE_SETUP.md](VOICE_SETUP.md)** for complete setup instructions including hardware requirements.
 
 ---
 

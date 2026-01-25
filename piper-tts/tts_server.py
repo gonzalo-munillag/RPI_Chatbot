@@ -56,6 +56,11 @@ SAMPLE_RATE = int(os.getenv("SAMPLE_RATE", "22050"))  # Piper default
 # Find your card number with: aplay -l
 AUDIO_DEVICE = os.getenv("AUDIO_DEVICE", "plughw:2,0")  # Default: USB speaker on card 2
 
+# Silence prefix duration (milliseconds) to wake up USB speaker before speech
+# USB audio devices need time to "wake up" from low-power state
+# Increase this if first word is still being cut off
+SILENCE_PREFIX_MS = int(os.getenv("SILENCE_PREFIX_MS", "500"))
+
 # Logging configuration
 logging.basicConfig(
     level=logging.INFO,
@@ -187,6 +192,46 @@ def run_piper(text: str, voice_model: str, output_file: Optional[str] = None) ->
         )
 
 
+def prepend_silence_to_wav(wav_file: str, silence_ms: int = SILENCE_PREFIX_MS):
+    """
+    Prepend silence to a WAV file to prevent first word being cut off.
+    
+    USB audio devices need a moment to "wake up" from low-power state.
+    By prepending silence to the audio file itself, we ensure the speaker
+    is active before the actual speech begins.
+    
+    Args:
+        wav_file: Path to the WAV file to modify
+        silence_ms: Duration of silence in milliseconds
+    """
+    import wave
+    import struct
+    
+    try:
+        # Read original WAV file
+        with wave.open(wav_file, 'rb') as original:
+            params = original.getparams()
+            original_frames = original.readframes(original.getnframes())
+        
+        # Calculate silence frames
+        # silence_samples = (sample_rate * silence_ms) / 1000
+        silence_samples = int(params.framerate * silence_ms / 1000)
+        # Each sample is 2 bytes (16-bit) * number of channels
+        bytes_per_sample = params.sampwidth * params.nchannels
+        silence_bytes = b'\x00' * (silence_samples * bytes_per_sample)
+        
+        # Write new WAV with silence prepended
+        with wave.open(wav_file, 'wb') as modified:
+            modified.setparams(params)
+            modified.writeframes(silence_bytes + original_frames)
+        
+        logger.debug(f"Prepended {silence_ms}ms silence to audio")
+        
+    except Exception as e:
+        logger.warning(f"Failed to prepend silence: {e}")
+        # Continue without silence if it fails
+
+
 def play_audio_file(audio_file: str):
     """
     Play an audio file through the configured ALSA device.
@@ -198,6 +243,10 @@ def play_audio_file(audio_file: str):
         HTTPException: If playback fails
     """
     try:
+        # Prepend silence to prevent first word cutoff on USB speakers
+        # USB audio devices need time to "wake up" from low-power state
+        prepend_silence_to_wav(audio_file, silence_ms=SILENCE_PREFIX_MS)
+        
         # Use -D to specify the audio device (e.g., plughw:2,0)
         # This is required in Docker containers where default device may not work
         result = subprocess.run(
@@ -339,6 +388,10 @@ async def speak(request: SpeakRequest):
     # Get voice model
     voice_model = get_voice_model(request.voice)
     
+    # Note: Speaker wake-up is handled by play_audio_file() which plays
+    # a brief silence before the actual audio to prevent first word cutoff
+    text_to_speak = request.text.strip()
+    
     logger.info(f"🗣️ Speaking: {request.text[:50]}...")
     
     if request.play_audio:
@@ -348,7 +401,7 @@ async def speak(request: SpeakRequest):
         
         try:
             # Generate audio file
-            run_piper(request.text, voice_model, tmp_path)
+            run_piper(text_to_speak, voice_model, tmp_path)
             
             # Play the audio
             play_audio_file(tmp_path)
@@ -360,7 +413,7 @@ async def speak(request: SpeakRequest):
     else:
         # Just generate (don't play) - useful for testing
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
-            run_piper(request.text, voice_model, tmp.name)
+            run_piper(text_to_speak, voice_model, tmp.name)
     
     duration_ms = (time.time() - start_time) * 1000
     

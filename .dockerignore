@@ -49,3 +49,6 @@ __pycache__/
 .Python
 *.egg-info/
 
+# Ignore blog posts
+BLOG_POST.md
+BLOG_WEBPORTAL.md

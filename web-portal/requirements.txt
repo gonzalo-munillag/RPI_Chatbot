@@ -1,0 +1,28 @@
+# =============================================================================
+# Web Portal Dependencies
+# =============================================================================
+#
+# These are the Python packages required for the web portal server.
+#
+# FastAPI: Modern web framework for building APIs
+#   - Fast (high performance)
+#   - Easy to use
+#   - Automatic API documentation
+#
+# Uvicorn: ASGI server that runs our FastAPI app
+#   - Handles incoming HTTP requests
+#   - Production-ready
+#
+# Requests: HTTP library for making API calls
+#   - Used to call Ollama and Piper TTS
+#
+# Python-multipart: Required for form data handling
+#   - Needed for login form processing
+#
+# =============================================================================
+
+fastapi>=0.104.0
+uvicorn>=0.24.0
+requests>=2.31.0
+python-multipart>=0.0.6
+

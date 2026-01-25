@@ -79,11 +79,35 @@ docker buildx build \
     .
 
 echo ""
+echo "🚀 Building Web Portal image..."
+echo ""
+
+docker buildx build \
+    --platform linux/arm64,linux/amd64 \
+    -t docker.io/$DOCKER_USERNAME/web-portal:latest \
+    -f web-portal/Dockerfile \
+    --push \
+    .
+
+echo ""
+echo "🚀 Building Telegram Bridge image..."
+echo ""
+
+docker buildx build \
+    --platform linux/arm64,linux/amd64 \
+    -t docker.io/$DOCKER_USERNAME/telegram-bridge:latest \
+    -f telegram-bridge/Dockerfile \
+    --push \
+    .
+
+echo ""
 echo "✅ All images built and pushed successfully!"
 echo "   Images: $DOCKER_USERNAME/ollama-gemma:latest"
 echo "           $DOCKER_USERNAME/whatsapp-bridge:latest"
 echo "           $DOCKER_USERNAME/piper-tts:latest"
 echo "           $DOCKER_USERNAME/whisper-stt:latest"
 echo "           $DOCKER_USERNAME/wakeword:latest"
+echo "           $DOCKER_USERNAME/web-portal:latest"
+echo "           $DOCKER_USERNAME/telegram-bridge:latest"
 echo ""
 echo "Deploy on Pi with: docker-compose up -d"

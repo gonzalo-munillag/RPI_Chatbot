@@ -10,6 +10,8 @@ ENV/
 *.egg-info/
 dist/
 build/
+train_venv/
+wakeword/train_venv/
 
 # IDEs
 .vscode/
@@ -39,9 +41,22 @@ whisper-stt/models/*
 # Environment variables (contains sensitive data)
 .env
 
-# blog post file
+# blog post files
 BLOG_POST.md
+BLOG_WEBPORTAL.md
+BLOG_VOICE.md
+BLOG_ALTERNATIVES.md
 
 # quick ssh into the pi
 ssh_pi.sh
 send_env2pi.sh
+
+# Wake word training samples (for custom wake word training via Colab)
+wakeword/training_samples/
+
+# Trained wake word models
+wakeword/models/*.onnx
+!wakeword/models/.gitkeep
+
+# Training virtual environments
+wakeword/train_venv/

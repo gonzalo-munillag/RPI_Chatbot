@@ -1,7 +1,7 @@
 version: '3.8'
 
 # Docker Compose for Raspberry Pi
-# Multi-container setup: Ollama+FastAPI + WhatsApp Bridge + Piper TTS
+# Multi-container setup: Ollama+FastAPI + WhatsApp Bridge + Piper TTS + Web Portal
 # Place this file in /var/www/ollama_chatbot/
 
 services:
@@ -117,6 +117,49 @@ services:
       - piper-tts
     group_add:
       - audio                   # Add to audio group for microphone access
+    networks:
+      - chatbot-network
+
+  # Service 6: Web Portal (Browser-based Chat Interface)
+  # ChatGPT-style UI for chatting with the AI from any browser
+  web-portal:
+    image: ${DOCKER_USERNAME}/web-portal:latest
+    container_name: web-portal
+    ports:
+      - "5054:5054"             # Web Portal (accessible from network)
+    restart: unless-stopped
+    environment:
+      - PORTAL_PASSWORD=${PORTAL_PASSWORD:-prometheus}  # Login password (change in .env!)
+      - OLLAMA_URL=http://ollama:8000                   # Connect to Ollama AI
+      - TTS_URL=http://piper-tts:5000                   # Connect to Piper TTS for "speak" keyword
+    depends_on:
+      - ollama
+      - piper-tts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5054/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - chatbot-network
+
+  # Service 7: Telegram Bridge (Telegram Bot Interface)
+  # Chat with the AI via Telegram - more reliable than WhatsApp
+  telegram:
+    image: ${DOCKER_USERNAME}/telegram-bridge:latest
+    container_name: telegram-bridge
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}         # Bot token from @BotFather (required)
+      - AUTHORIZED_USERS=${TELEGRAM_AUTHORIZED_USERS}    # Comma-separated Telegram user IDs
+      - AUTHORIZED_GROUPS=${TELEGRAM_AUTHORIZED_GROUPS:-}  # Comma-separated group IDs (optional, leave empty to allow all)
+      - OLLAMA_URL=http://ollama:8000                    # Connect to Ollama AI
+      - TTS_URL=http://piper-tts:5000                    # Connect to Piper TTS for "speak" keyword
+      - MAX_CONTEXT_MESSAGES=10                          # Conversation memory size
+    depends_on:
+      - ollama
+      - piper-tts
     networks:
       - chatbot-network
 
